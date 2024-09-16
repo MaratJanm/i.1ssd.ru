@@ -1,0 +1,120 @@
+/* styles.css */
+
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f0f2f5;
+    margin: 0;
+    padding: 20px;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    background-color: #ffffff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    position: relative;
+}
+
+.download-link {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    color: #007bff;
+    text-decoration: underline;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.computer {
+    margin-bottom: 20px;
+}
+
+.computer h2 {
+    font-size: 24px;
+    color: #333333;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 5px;
+}
+
+.disk {
+    font-size: 18px;
+    color: #555555;
+    margin-left: 20px;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 20px;
+}
+
+.disk-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.disk-header span, .disk-header .current-temperature {
+    margin-right: 20px;
+}
+
+.disk span {
+    color: #007bff;
+    cursor: pointer;
+}
+
+.chart-container {
+    position: relative;
+    height: 200px;
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.current-temperature {
+    font-size: 18px;
+    color: #333333;
+}
+
+.input-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.input-container label {
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #333333;
+}
+
+.input-container input[type="text"],
+.input-container textarea {
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 16px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.input-container textarea {
+    resize: vertical;
+    min-height: 60px;
+}
+
+.input-container input[type="text"]:focus,
+.input-container textarea:focus {
+    border-color: #007bff;
+    outline: none;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+}
+
+@media (max-width: 768px) {
+    .download-link {
+        position: static;
+        display: block;
+        margin: 10px auto;
+        width: 80%;
+        text-align: center;
+    }
+}

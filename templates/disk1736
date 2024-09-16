@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disk Information</title>
+</head>
+<body>
+    <h1>Disk: {{ disk_data.disk }} ({{ disk_data.computer_name }})</h1>
+    <h2>Latest Temperature: {{ disk_data.temperature }}°C</h2>
+    <h3>Parameters:</h3>
+    <ul>
+        <li>Parameter 241: {{ disk_data.parameter_241 or 'N/A' }}</li>
+        <li>Parameter 243: {{ disk_data.parameter_243 or 'N/A' }}</li>
+        <li>Parameter 228: {{ disk_data.parameter_228 or 'N/A' }}</li>
+        <li>Parameter 005: {{ disk_data.parameter_005 or 'N/A' }}</li>
+        <li>Parameter 009: {{ disk_data.parameter_009 or 'N/A' }}</li>
+        <li>Parameter 170: {{ disk_data.parameter_170 or 'N/A' }}</li>
+        <li>Parameter 174: {{ disk_data.parameter_174 or 'N/A' }}</li>
+        <li>Parameter 184: {{ disk_data.parameter_184 or 'N/A' }}</li>
+        <li>Parameter 187: {{ disk_data.parameter_187 or 'N/A' }}</li>
+        <li>Parameter 194: {{ disk_data.parameter_194 or 'N/A' }}</li>
+        <li>Parameter 192: {{ disk_data.parameter_192 or 'N/A' }}</li>
+        <li>Parameter 199: {{ disk_data.parameter_199 or 'N/A' }}</li>
+        <li>Parameter 197: {{ disk_data.parameter_197 or 'N/A' }}</li>
+        <li>Company: {{ disk_data.company or 'N/A' }}</li>
+        <li>Parameter 230: {{ disk_data.parameter_230 or 'N/A' }}</li>
+        <li>Parameter 231: {{ disk_data.parameter_231 or 'N/A' }}</li>
+    </ul>
+    <p>Last Updated: {{ disk_data.timestamp }}</p>
+</body>
+</html>

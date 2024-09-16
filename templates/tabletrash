@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Графики и данные</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .back-button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .back-button:hover {
+            background-color: #0056b3;
+        }
+        .graph-container {
+            margin-top: 20px;
+        }
+        #graph {
+            width: 100%;
+            height: 400px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <a href="disk.html?computer=<YOUR_COMPUTER_NAME>&disk=<YOUR_DISK_NAME>" class="back-button">Назад</a>
+        <h1>Графики и данные</h1>
+        <div class="graph-container">
+            <canvas id="graph"></canvas>
+        </div>
+    </div>
+    <script>
+        async function fetchGraphData(computerName, diskName, view) {
+            try {
+                const response = await fetch(`/api/graph/${computerName}/${diskName}?view=${view}`);
+                if (!response.ok) {
+                    console.error(`HTTP error! status: ${response.status}`);
+                    return [];
+                }
+                return await response.json();
+            } catch (error) {
+                console.error("Error fetching graph data:", error);
+                return [];
+            }
+        }
+
+        function createChart(data, view) {
+            const ctx = document.getElementById('graph').getContext('2d');
+            const labels = data.map(item => new Date(item.timestamp).toLocaleString());
+            const values = data.map(item => item[view]);
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: view,
+                        data: values,
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            beginAtZero: true
+                        },
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const computerName = urlParams.get('computer');
+            const diskName = urlParams.get('disk');
+            const view = urlParams.get('view');
+
+            if (!computerName || !diskName || !view) {
+                document.getElementById('graph').innerHTML = "Недостаточно данных для загрузки. Убедитесь, что в URL присутствуют параметры 'computer', 'disk' и 'view'.";
+                return;
+            }
+
+            const data = await fetchGraphData(computerName, diskName, view);
+
+            if (data.length === 0) {
+                document.getElementById('graph').innerHTML = "Нет данных для отображения.";
+                return;
+            }
+
+            createChart(data, view);
+        });
+    </script>
+</body>
+</html>

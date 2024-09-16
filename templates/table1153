@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>График данных диска</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 24px;
+            color: #333333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        .back-button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .back-button:hover {
+            background-color: #0056b3;
+        }
+        .loading {
+            font-size: 18px;
+            color: #007bff;
+            text-align: center;
+            margin-top: 20px;
+        }
+        canvas {
+            width: 100% !important;
+            height: auto !important;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <a href="disk.html" class="back-button">Назад</a>
+        <h1 id="chart-title"></h1>
+        <div class="loading" id="loading">Загрузка данных...</div>
+        <canvas id="dataChart"></canvas>
+    </div>
+    <script>
+        async function fetchParameterData(computerName, diskName, parameter) {
+            try {
+                const response = await fetch(`/api/disk/${computerName}/${diskName}?param=${parameter}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log("Fetched parameter data:", data); // Отладка
+                return data;
+            } catch (error) {
+                console.error("Error fetching parameter data:", error);
+                return [];
+            }
+        }
+
+        function renderChart(labels, data, label) {
+            const ctx = document.getElementById('dataChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0, 123, 255, 0.2)',
+                        borderWidth: 1,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Время'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: label
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const parameter = urlParams.get('view');
+            const pathParts = window.location.pathname.split('/');
+            const computerName = pathParts[2];
+            const diskName = pathParts[3];
+
+            document.getElementById('chart-title').textContent = `График для параметра: ${parameter}`;
+
+            const data = await fetchParameterData(computerName, diskName, parameter);
+
+            // Отладка
+            if (data.length === 0) {
+                console.error("No data available for the specified parameter.");
+                document.getElementById('loading').textContent = "Нет данных для отображения.";
+                return;
+            }
+
+            // Предполагается, что данные содержат поле timestamp и нужное значение параметра
+            const labels = data.map(item => new Date(item.timestamp).toLocaleString());
+            const values = data.map(item => item[parameter]);
+
+            // Отладка
+            console.log("Labels:", labels);
+            console.log("Values:", values);
+
+            if (labels.length === 0 || values.length === 0) {
+                console.error("No valid data to render chart.");
+                document.getElementById('loading').textContent = "Нет данных для отображения.";
+                return;
+            }
+
+            renderChart(labels, values, parameter);
+
+            document.getElementById('loading').style.display = 'none';
+        });
+    </script>
+</body>
+</html>

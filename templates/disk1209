@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Данные диска</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 24px;
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        .back-button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .back-button:hover {
+            background-color: #0056b3;
+        }
+        .loading {
+            font-size: 18px;
+            color: #007bff;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .disk-info {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .disk-info h2 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        .disk-info ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        .disk-info ul li {
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+        .disk-info ul li a {
+            color: #007bff;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .disk-info ul li a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 20px;
+            }
+            .back-button {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+            .disk-info h2 {
+                font-size: 18px;
+            }
+            .disk-info ul li {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-button">Назад</a>
+        <h1 id="disk-title"></h1>
+        <div class="loading" id="loading">Загрузка данных...</div>
+        <!-- Секция для отображения параметров -->
+        <div class="disk-info" id="disk-info" style="display: none;">
+            <h2>Параметры диска</h2>
+            <ul id="disk-parameters"></ul>
+        </div>
+    </div>
+
+    <script>
+        // Функция для получения данных диска через API
+        async function fetchDiskData(computerName, diskName) {
+            try {
+                const response = await fetch(`/api/disk/latest/${computerName}/${diskName}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log("Fetched disk data:", data);
+                return data;
+            } catch (error) {
+                console.error("Error fetching disk data:", error);
+                return [];
+            }
+        }
+
+        // Функция для получения последних данных
+        function getLatestData(data) {
+            if (data.length === 0) return {};
+            const latestEntry = data[0];
+            const filteredParams = {};
+            for (const key in latestEntry) {
+                if (latestEntry[key] !== null && latestEntry[key] !== '' && key !== 'id' && key !== 'timestamp') {
+                    filteredParams[key] = latestEntry[key];
+                }
+            }
+            return filteredParams;
+        }
+
+        // Функция для отображения параметров диска
+        function populateDiskInfo(data) {
+            const diskParameters = document.getElementById('disk-parameters');
+            const latestData = getLatestData(data);
+            diskParameters.innerHTML = '';
+            
+            const pathParts = window.location.pathname.split('/');
+            const computerName = encodeURIComponent(pathParts[2]);
+            const diskName = encodeURIComponent(pathParts[3]);
+
+            for (const [key, value] of Object.entries(latestData)) {
+                const listItem = document.createElement('li');
+                if (value !== null && value !== undefined) {
+                    const link = document.createElement('a');
+                    link.href = `/disk/${computerName}/${diskName}/parameter/${key}`;
+                    link.textContent = `${key}: ${value}`;
+                    listItem.appendChild(link);
+                } else {
+                    listItem.textContent = `${key}: N/A`;
+                }
+                diskParameters.appendChild(listItem);
+            }
+
+            if (Object.keys(latestData).length > 0) {
+                document.getElementById('disk-info').style.display = 'block';
+            }
+        }
+
+        // Загрузка данных при загрузке страницы
+        document.addEventListener('DOMContentLoaded', async () => {
+            const pathParts = window.location.pathname.split('/');
+            const computerName = decodeURIComponent(pathParts[2]);
+            const diskName = decodeURIComponent(pathParts[3]);
+
+            document.getElementById('disk-title').textContent = `Данные для диска: ${diskName} на компьютере: ${computerName}`;
+
+            const diskData = await fetchDiskData(computerName, diskName);
+            populateDiskInfo(diskData);
+            document.getElementById('loading').style.display = 'none';
+        });
+    </script>
+</body>
+</html>

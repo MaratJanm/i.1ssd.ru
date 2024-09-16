@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Данные диска</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 24px;
+            color: #333333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        .latest-parameters {
+            margin-bottom: 20px;
+            font-size: 18px;
+        }
+        .parameter-link {
+            display: block;
+            margin-bottom: 5px;
+            color: #007bff;
+            text-decoration: none;
+        }
+        .parameter-link:hover {
+            text-decoration: underline;
+        }
+        .back-button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .back-button:hover {
+            background-color: #0056b3;
+        }
+        .loading {
+            font-size: 18px;
+            color: #007bff;
+            text-align: center;
+            margin-top: 20px;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 20px;
+            }
+            .back-button {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-button">Назад</a>
+        <h1 id="disk-title"></h1>
+        <div class="latest-parameters" id="latest-parameters"></div>
+        <div class="loading" id="loading">Загрузка данных...</div>
+    </div>
+    <script>
+        async function fetchDiskData(computerName, diskName) {
+            try {
+                const response = await fetch(`/api/disk/${computerName}/${diskName}`);
+                console.log(`Request URL: /api/disk/${computerName}/${diskName}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log("Fetched disk data:", data);
+                return data;
+            } catch (error) {
+                console.error("Error fetching disk data:", error);
+                return [];
+            }
+        }
+
+        function createParameterLink(computerName, diskName, parameter, value) {
+            return `<a href="table.html?computerName=${computerName}&diskName=${encodeURIComponent(diskName)}&parameter=${parameter}" class="parameter-link">Параметр ${parameter}: ${value}</a>`;
+        }
+
+        function displayLatestParameters(data, computerName, diskName) {
+            if (data.length === 0) return;
+
+            const latestEntry = data[0]; // Самая свежая запись
+            const parameters = latestEntry.parameters;
+
+            const latestParametersDiv = document.getElementById('latest-parameters');
+            latestParametersDiv.innerHTML = `
+                <strong>Самая свежая запись:</strong><br>
+                ${Object.keys(parameters).map(param => createParameterLink(computerName, diskName, param, parameters[param])).join('')}
+                ${createParameterLink(computerName, diskName, 'temperature', latestEntry.temperature)}
+            `;
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const pathParts = window.location.pathname.split('/');
+            console.log("Path parts:", pathParts);
+            const computerName = pathParts[2];
+            const diskName = decodeURIComponent(pathParts[3]);
+
+            console.log(`Fetching data for computer: ${computerName}, disk: ${diskName}`);
+
+            document.getElementById('disk-title').textContent = `Данные для диска: ${diskName} на компьютере: ${computerName}`;
+
+            const diskData = await fetchDiskData(computerName, diskName);
+            console.log("Disk data fetched:", diskData);
+            displayLatestParameters(diskData, computerName, diskName);
+
+            document.getElementById('loading').style.display = 'none';
+        });
+    </script>
+</body>
+</html>

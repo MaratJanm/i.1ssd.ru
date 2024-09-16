@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>История параметра</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f2f5;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background-color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    h1 {
+      font-size: 24px;
+      color: #333;
+      border-bottom: 2px solid #007bff;
+      padding-bottom: 5px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 20px;
+    }
+    table, th, td {
+      border: 1px solid #ddd;
+    }
+    th, td {
+      padding: 10px;
+      text-align: left;
+    }
+    th {
+      background-color: #f0f2f5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back-button">Назад</a>
+    <h1 id="parameter-title">История параметра</h1>
+    <div id="loading">Загрузка данных...</div>
+    <table id="parameter-table" style="display: none;">
+      <thead>
+        <tr>
+          <th>Время</th>
+          <th>Значение параметра</th>
+        </tr>
+      </thead>
+      <tbody id="parameter-data"></tbody>
+    </table>
+  </div>
+
+  <script>
+    async function fetchParameterData(computerName, diskName, parameterName) {
+      try {
+        const response = await fetch(`/api/disk/${computerName}/${diskName}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        return data.map(item => ({
+          timestamp: item.timestamp,
+          value: item[parameterName]
+        }));
+      } catch (error) {
+        console.error("Error fetching parameter data:", error);
+        return [];
+      }
+    }
+
+    function populateParameterTable(data) {
+      const tableBody = document.getElementById('parameter-data');
+      tableBody.innerHTML = '';
+      data.forEach(item => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${new Date(item.timestamp).toLocaleString()}</td>
+          <td>${item.value !== null ? item.value : 'N/A'}</td>
+        `;
+        tableBody.appendChild(row);
+      });
+      document.getElementById('parameter-table').style.display = 'table';
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const pathParts = window.location.pathname.split('/');
+      const computerName = decodeURIComponent(pathParts[2]);
+      const diskName = decodeURIComponent(pathParts[3]);
+      const parameterName = decodeURIComponent(pathParts[5]);
+
+      document.getElementById('parameter-title').textContent = `История параметра: ${parameterName} для диска ${diskName} на компьютере ${computerName}`;
+
+      const parameterData = await fetchParameterData(computerName, diskName, parameterName);
+      populateParameterTable(parameterData);
+
+      document.getElementById('loading').style.display = 'none';
+    });
+  </script>
+</body>
+</html>

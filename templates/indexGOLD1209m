@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Температуры дисков</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+        .download-link {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #007bff;
+            text-decoration: underline;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .computer {
+            margin-bottom: 20px;
+        }
+        .computer h2 {
+            font-size: 24px;
+            color: #333333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        .disk {
+            font-size: 18px;
+            color: #555555;
+            margin-left: 20px;
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 20px;
+        }
+        .disk-header {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+        }
+        .disk-header span, .disk-header .current-percentage {
+            margin-right: 20px;
+        }
+        .disk span {
+            color: #007bff;
+            cursor: pointer;
+        }
+        .chart-container {
+            position: relative;
+            height: 200px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .current-percentage {
+            font-size: 18px;
+            color: #333333;
+        }
+        .input-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .input-container label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333333;
+        }
+        .input-container input[type="text"], .input-container textarea {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .input-container textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        .input-container input[type="text"]:focus, .input-container textarea:focus {
+            border-color: #007bff;
+            outline: none;
+            box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+        }
+        @media (max-width: 768px) {
+            .download-link {
+                position: static;
+                display: block;
+                margin: 10px auto;
+                width: 80%;
+                text-align: center;
+            }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+</head>
+<body>
+    <div class="container">
+        <a href="/download" class="download-link">Скачать клиент</a>
+        <div id="computers"></div>
+    </div>
+    <script>
+        const charts = {};
+
+        async function fetchTemperatures() {
+            try {
+                const response = await fetch('/api/temperatures');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log("Fetched temperatures data:", data);
+                return data;
+            } catch (error) {
+                console.error("Error fetching temperatures:", error);
+                return [];
+            }
+        }
+
+        async function fetchAdditionalInfo(computerName, diskName) {
+            try {
+                const response = await fetch(`/api/additionalinfo/${computerName}/${diskName}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log("Fetched additional info:", data);
+                return data;
+            } catch (error) {
+                console.error("Error fetching additional info:", error);
+                return { tbw: null, comment: null };
+            }
+        }
+
+        function groupByComputer(data) {
+            const grouped = {};
+            data.forEach(item => {
+                if (!grouped[item.computer_name]) {
+                    grouped[item.computer_name] = {};
+                }
+                if (!grouped[item.computer_name][item.disk]) {
+                    grouped[item.computer_name][item.disk] = [];
+                }
+                grouped[item.computer_name][item.disk].push(item);
+            });
+            console.log("Grouped data:", grouped);
+            return grouped;
+        }
+
+        function createChart(ctx, data, realtbw) {
+            const percentages = data.map(item => realtbw ? (parseFloat(item.parameter_241) / realtbw) * 100 : 0);
+            console.log("Creating chart with percentage data:", percentages);
+            return new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(item => new Date(item.timestamp)),
+                    datasets: [{
+                        label: '241 Parameter Percentage',
+                        data: percentages,
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1,
+                        fill: false
+                    }]
+                },
+                options: {
+                    animation: true,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'minute'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: 100  // Процент не может быть больше 100
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChart(chart, data, realtbw) {
+            const percentages = data.map(item => realtbw ? (parseFloat(item.parameter_241) / realtbw) * 100 : 0);
+            chart.data.labels = data.map(item => new Date(item.timestamp));
+            chart.data.datasets[0].data = percentages;
+            chart.update();
+        }
+
+        async function saveTBW(computerName, diskName, tbwValue) {
+            try {
+                const response = await fetch(`/api/save-tbw/${computerName}/${diskName}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ tbw: tbwValue })
+                });
+                if (!response.ok) {
+                    throw new Error(`Error saving TBW: ${response.status}`);
+                }
+                const result = await response.json();
+                alert(result.message || 'TBW saved successfully!');
+            } catch (error) {
+                console.error("Error saving TBW:", error);
+            }
+        }
+
+        async function saveComment(computerName, diskName, commentValue) {
+            try {
+                const response = await fetch(`/api/save-comment/${computerName}/${diskName}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ comment: commentValue })
+                });
+                if (!response.ok) {
+                    throw new Error(`Error saving comment: ${response.status}`);
+                }
+                const result = await response.json();
+                alert(result.message || 'Comment saved successfully!');
+            } catch (error) {
+                console.error("Error saving comment:", error);
+            }
+        }
+
+        async function updateData() {
+            const temperatures = await fetchTemperatures();
+            if (temperatures.length === 0) {
+                console.warn("No temperature data available.");
+                return;
+            }
+            const groupedData = groupByComputer(temperatures);
+            const container = document.getElementById('computers');
+            container.innerHTML = ''; // Clear the container before updating
+
+            for (const [computerName, disks] of Object.entries(groupedData)) {
+                let computerDiv = document.querySelector(`.computer[data-computer-name="${computerName}"]`);
+                if (!computerDiv) {
+                    computerDiv = document.createElement('div');
+                    computerDiv.className = 'computer';
+                    computerDiv.setAttribute('data-computer-name', computerName);
+                    const computerTitle = document.createElement('h2');
+                    computerTitle.textContent = `Компьютер: ${computerName}`;
+                    computerDiv.appendChild(computerTitle);
+                    container.appendChild(computerDiv);
+                }
+
+                for (const [diskName, diskData] of Object.entries(disks)) {
+                    const latestData = diskData[0];
+                    let diskDiv = computerDiv.querySelector(`.disk[data-disk-name="${diskName}"]`);
+                    if (!diskDiv) {
+                        diskDiv = document.createElement('div');
+                        diskDiv.className = 'disk';
+                        diskDiv.setAttribute('data-disk-name', diskName);
+
+                        const diskHeader = document.createElement('div');
+                        diskHeader.className = 'disk-header';
+
+                        const diskTitle = document.createElement('span');
+                        diskTitle.textContent = `Диск: ${diskName}`;
+                        diskTitle.addEventListener('click', () => {
+                            window.location.href = `/disk/${computerName}/${diskName}`;
+                        });
+                        diskHeader.appendChild(diskTitle);
+
+                        const currentPercentage = document.createElement('div');
+                        currentPercentage.className = 'current-percentage';
+                        currentPercentage.textContent = `241 параметр: --%`;  // Это обновится после получения TBW
+                        diskHeader.appendChild(currentPercentage);
+
+                        diskDiv.appendChild(diskHeader);
+
+                        const chartContainer = document.createElement('div');
+                        chartContainer.className = 'chart-container';
+                        const canvas = document.createElement('canvas');
+                        chartContainer.appendChild(canvas);
+                        diskDiv.appendChild(chartContainer);
+
+                        const inputContainer = document.createElement('div');
+                        inputContainer.className = 'input-container';
+
+                        const tbwLabel = document.createElement('label');
+                        tbwLabel.textContent = 'TBW:';
+                        inputContainer.appendChild(tbwLabel);
+
+                        const tbwInput = document.createElement('input');
+                        tbwInput.type = 'text';
+                        tbwInput.className = 'tbw-input';
+                        tbwInput.setAttribute('data-computer-name', computerName);
+                        tbwInput.setAttribute('data-disk-name', diskName);
+                        inputContainer.appendChild(tbwInput);
+
+                        const saveTbwButton = document.createElement('button');
+                        saveTbwButton.textContent = 'Сохранить TBW';
+                        saveTbwButton.className = 'save-tbw-button';
+                        saveTbwButton.setAttribute('data-computer-name', computerName);
+                        saveTbwButton.setAttribute('data-disk-name', diskName);
+                        saveTbwButton.addEventListener('click', () => {
+                            const tbwValue = tbwInput.value;
+                            saveTBW(computerName, diskName, tbwValue);
+                        });
+                        inputContainer.appendChild(saveTbwButton);
+
+                        const commentLabel = document.createElement('label');
+                        commentLabel.textContent = 'Комментарий:';
+                        inputContainer.appendChild(commentLabel);
+
+                        const commentTextarea = document.createElement('textarea');
+                        commentTextarea.className = 'comment-input';
+                        commentTextarea.setAttribute('data-computer-name', computerName);
+                        commentTextarea.setAttribute('data-disk-name', diskName);
+                        inputContainer.appendChild(commentTextarea);
+
+                        const saveCommentButton = document.createElement('button');
+                        saveCommentButton.textContent = 'Сохранить комментарий';
+                        saveCommentButton.className = 'save-comment-button';
+                        saveCommentButton.setAttribute('data-computer-name', computerName);
+                        saveCommentButton.setAttribute('data-disk-name', diskName);
+                        saveCommentButton.addEventListener('click', () => {
+                            const commentValue = commentTextarea.value;
+                            saveComment(computerName, diskName, commentValue);
+                        });
+                        inputContainer.appendChild(saveCommentButton);
+
+                        diskDiv.appendChild(inputContainer);
+                        computerDiv.appendChild(diskDiv);
+
+                        // Fetch and update additional info for the disk
+                        const additionalInfo = await fetchAdditionalInfo(computerName, diskName);
+                        const realtbw = additionalInfo.tbw;
+                        tbwInput.value = realtbw || '';
+                        commentTextarea.value = additionalInfo.comment || '';
+                        
+                        if (realtbw) {
+                            const percentage = (parseFloat(latestData.parameter_241) / realtbw) * 100;
+                            currentPercentage.textContent = `241 параметр: ${percentage.toFixed(2)}%`;
+                        }
+
+                        charts[`${computerName}-${diskName}`] = createChart(canvas, diskData, realtbw);
+                    } else {
+                        const currentPercentage = diskDiv.querySelector('.current-percentage');
+                        const realtbw = diskDiv.querySelector('.tbw-input').value;
+                        if (realtbw) {
+                            const percentage = (parseFloat(latestData.parameter_241) / realtbw) * 100;
+                            currentPercentage.textContent = `241 параметр: ${percentage.toFixed(2)}%`;
+                        }
+                        updateChart(charts[`${computerName}-${diskName}`], diskData, realtbw);
+                    }
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateData();
+            setInterval(updateData, 60000); // Update data every 60 seconds
+        });
+    </script>
+</body>
+</html>

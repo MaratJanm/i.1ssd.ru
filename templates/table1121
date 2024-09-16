@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Таблица данных диска</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 24px;
+            color: #333333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f2f5;
+        }
+        .back-button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .back-button:hover {
+            background-color: #0056b3;
+        }
+        .chart-container {
+            margin-bottom: 20px;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 20px;
+            }
+            th, td {
+                padding: 8px;
+                font-size: 12px;
+            }
+            .back-button {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+        }
+    </style>
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.css">
+    <script type="text/javascript" charset="utf8" src="https://code.jquery.com/jquery-3.5.1.js"></script>
+    <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <a href="disk.html" class="back-button">Назад</a>
+        <h1>Таблица данных диска</h1>
+
+        <div class="chart-container">
+            <canvas id="dataChart"></canvas>
+        </div>
+
+        <div class="table-container">
+            <table id="disk-table" class="display" style="width: 100%;">
+                <thead>
+                    <tr>
+                        <th>Время</th>
+                        <th>Температура (°C)</th>
+                        <th>Параметр 241</th>
+                    </tr>
+                </thead>
+                <tbody id="disk-data"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function fetchDiskData() {
+            // Замените на правильный URL для вашего API
+            const response = await fetch(`/api/disk-data`);
+            const data = await response.json();
+            return data;
+        }
+
+        function populateTable(data) {
+            const tableBody = document.getElementById('disk-data');
+            tableBody.innerHTML = '';
+
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${new Date(item.timestamp).toLocaleString()}</td>
+                    <td>${item.temperature}</td>
+                    <td>${item.parameter_241}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            $('#disk-table').DataTable({
+                order: [[0, 'desc']],
+                pagingType: 'simple_numbers',
+                searching: false,
+                dom: 'lfrtip',
+                language: {
+                    paginate: {
+                        first: "First",
+                        last: "Last"
+                    }
+                }
+            });
+        }
+
+        function renderChart(data, view) {
+            const ctx = document.getElementById('dataChart').getContext('2d');
+            const labels = data.map(item => new Date(item.timestamp).toLocaleString());
+            const values = data.map(item => view === 'temperature' ? item.temperature : item.parameter_241);
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: view === 'temperature' ? 'Температура (°C)' : 'Параметр 241',
+                        data: values,
+                        borderColor: '#007bff',
+                        backgroundColor: 'rgba(0, 123, 255, 0.2)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            beginAtZero: true
+                        },
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const data = await fetchDiskData();
+            const urlParams = new URLSearchParams(window.location.search);
+            const view = urlParams.get('view');
+
+            populateTable(data);
+            if (view) {
+                renderChart(data, view);
+            } else {
+                document.querySelector('.chart-container').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

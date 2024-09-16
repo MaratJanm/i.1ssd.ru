@@ -1,0 +1,11 @@
+LOAD DATABASE
+     FROM sqlite:///opt/myapp/temperatures.db
+     INTO postgresql://myuser:mypassword@localhost/temperatures_db
+
+  WITH include no tables;
+
+  -- Указываем, что делать с данными
+  -- В данном случае мы используем COPY команду
+  COPY temperatures
+     FROM sqlite:///opt/myapp/temperatures.db
+     INTO postgresql://myuser:mypassword@localhost/temperatures_db;

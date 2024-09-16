@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Температуры дисков</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+        .download-link {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: #007bff;
+            text-decoration: underline;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .computer {
+            margin-bottom: 20px;
+        }
+        .computer h2 {
+            font-size: 24px;
+            color: #333333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        .disk {
+            font-size: 18px;
+            color: #555555;
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fafafa;
+        }
+        .disk-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .disk-header span, .disk-header .current-temperature {
+            margin-right: 20px;
+        }
+        .disk span {
+            color: #007bff;
+            cursor: pointer;
+        }
+        .chart-container {
+            position: relative;
+            height: 200px;
+            width: 200px;
+            margin-right: 20px;
+        }
+        .input-container {
+            display: flex;
+            flex-direction: column;
+        }
+        .input-container label {
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .input-container input, .input-container textarea {
+            margin-bottom: 10px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 200px;
+        }
+        .input-container textarea {
+            resize: vertical;
+            height: 80px;
+        }
+        .disk-content {
+            display: flex;
+            align-items: center;
+        }
+        .disk-content .chart-container {
+            margin-right: 20px;
+        }
+        @media (max-width: 768px) {
+            .download-link {
+                position: static;
+                display: block;
+                margin: 10px auto;
+                width: 80%;
+                text-align: center;
+            }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+</head>
+<body>
+    <div class="container">
+        <a href="/download" class="download-link">Скачать клиент</a>
+        <div id="computers"></div>
+    </div>
+    <script>
+        const charts = {};
+
+        async function fetchTemperatures() {
+            try {
+                const response = await fetch('/api/temperatures');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log("Fetched data:", data);
+                return data;
+            } catch (error) {
+                console.error("Error fetching temperatures:", error);
+                return [];
+            }
+        }
+
+        function groupByComputer(data) {
+            const grouped = {};
+            data.forEach(item => {
+                if (!grouped[item.computer_name]) {
+                    grouped[item.computer_name] = {};
+                }
+                if (!grouped[item.computer_name][item.disk]) {
+                    grouped[item.computer_name][item.disk] = [];
+                }
+                grouped[item.computer_name][item.disk].push(item);
+            });
+            console.log("Grouped data:", grouped);
+            return grouped;
+        }
+
+        function createChart(ctx, progress) {
+            console.log("Creating chart with progress:", progress);
+            return new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Progress', 'Remaining'],
+                    datasets: [{
+                        data: [progress, 100 - progress],
+                        backgroundColor: [
+                            progress < 45 ? 'green' :
+                            progress < 75 ? 'yellow' :
+                            'red',
+                            '#e0e0e0'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw.toFixed(2) + '%';
+                                    return label ? `${label}: ${value}` : value;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateChart(chart, progress) {
+            chart.data.datasets[0].data = [progress, 100 - progress];
+            chart.data.datasets[0].backgroundColor = [
+                progress < 45 ? 'green' :
+                progress < 75 ? 'yellow' :
+                'red',
+                '#e0e0e0'
+            ];
+            chart.update();
+        }
+
+        async function updateData() {
+            const temperatures = await fetchTemperatures();
+            if (temperatures.length === 0) {
+                console.warn("No temperature data available.");
+                return;
+            }
+            const groupedData = groupByComputer(temperatures);
+            const container = document.getElementById('computers');
+            container.innerHTML = ''; // Clear the container before updating
+
+            Object.keys(groupedData).forEach(computerName => {
+                let computerDiv = document.querySelector(`.computer[data-computer-name="${computerName}"]`);
+                if (!computerDiv) {
+                    computerDiv = document.createElement('div');
+                    computerDiv.className = 'computer';
+                    computerDiv.setAttribute('data-computer-name', computerName);
+                    const computerTitle = document.createElement('h2');
+                    computerTitle.textContent = `Компьютер: ${computerName}`;
+                    computerDiv.appendChild(computerTitle);
+                    container.appendChild(computerDiv);
+                }
+
+                Object.keys(groupedData[computerName]).forEach(diskName => {
+                    const diskData = groupedData[computerName][diskName];
+                    const latestData = diskData[0];
+
+                    let diskDiv = computerDiv.querySelector(`.disk[data-disk-name="${diskName}"]`);
+                    if (!diskDiv) {
+                        diskDiv = document.createElement('div');
+                        diskDiv.className = 'disk';
+                        diskDiv.setAttribute('data-disk-name', diskName);
+
+                        const diskHeader = document.createElement('div');
+                        diskHeader.className = 'disk-header';
+
+                        const diskTitle = document.createElement('span');
+                        diskTitle.textContent = `Диск: ${diskName}`;
+                        diskTitle.addEventListener('click', () => {
+                            window.location.href = `/disk/${computerName}/${diskName}`;
+                        });
+                        diskHeader.appendChild(diskTitle);
+
+                        const currentTemp = document.createElement('div');
+                        currentTemp.className = 'current-temperature';
+                        currentTemp.textContent = `Текущая температура: ${latestData.temperature}°C`;
+                        diskHeader.appendChild(currentTemp);
+
+                        diskDiv.appendChild(diskHeader);
+
+                        const diskContent = document.createElement('div');
+                        diskContent.className = 'disk-content';
+
+                        const chartContainer = document.createElement('div');
+                        chartContainer.className = 'chart-container';
+                        const canvas = document.createElement('canvas');
+                        chartContainer.appendChild(canvas);
+                        diskContent.appendChild(chartContainer);
+
+                        const inputContainer = document.createElement('div');
+                        inputContainer.className = 'input-container';
+
+                        const tbwLabel = document.createElement('label');
+                        tbwLabel.textContent = 'TBW:';
+                        inputContainer.appendChild(tbwLabel);
+
+                        const tbwInput = document.createElement('input');
+                        tbwInput.type = 'text';
+                        tbwInput.value = latestData.TBW || ''; // Заполнение значением из базы данных
+                        tbwInput.addEventListener('change', () => {
+                            saveField(computerName, diskName, 'TBW', tbwInput.value);
+                        });
+                        inputContainer.appendChild(tbwInput);
+
+                        const commentLabel = document.createElement('label');
+                        commentLabel.textContent = 'Комментарий:';
+                        inputContainer.appendChild(commentLabel);
+
+                        const commentTextarea = document.createElement('textarea');
+                        commentTextarea.value = latestData.comment || ''; // Заполнение значением из базы данных
+                        commentTextarea.addEventListener('change', () => {
+                            saveField(computerName, diskName, 'comment', commentTextarea.value);
+                       
+                        });
+                        inputContainer.appendChild(commentTextarea);
+
+                        diskContent.appendChild(inputContainer);
+                        diskDiv.appendChild(diskContent);
+                        computerDiv.appendChild(diskDiv);
+
+                        const ctx = canvas.getContext('2d');
+                        charts[`${computerName}-${diskName}`] = createChart(ctx, 0);
+                    }
+
+                    // Обновляем значения полей и диаграмму
+                    const commentTextarea = diskDiv.querySelector('textarea');
+                    commentTextarea.value = latestData.comment || '';
+
+                    const tbwInput = diskDiv.querySelector('input[type="text"]');
+                    tbwInput.value = latestData.TBW || '';
+
+                    const progress = (parseFloat(latestData.parameter241) / parseInt(latestData.TBW)) * 100;
+                    updateChart(charts[`${computerName}-${diskName}`], progress);
+                });
+            });
+        }
+
+        async function saveField(computerName, diskName, field, value) {
+            try {
+                const response = await fetch(`/api/update_field`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ computer_name: computerName, disk: diskName, field, value })
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const result = await response.json();
+                console.log("Field updated:", result);
+            } catch (error) {
+                console.error("Error updating field:", error);
+            }
+        }
+
+        // Обновляем данные только при загрузке страницы
+        updateData();
+    </script>
+</body>
+</html>

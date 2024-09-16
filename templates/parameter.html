@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>История параметра</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 24px;
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        .back-button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .back-button:hover {
+            background-color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f2f5;
+        }
+        .loading {
+            font-size: 18px;
+            color: #007bff;
+            text-align: center;
+            margin-top: 20px;
+        }
+        /* Добавляем отступ для элементов управления таблицей */
+        .dataTables_wrapper .dataTables_length {
+            margin-bottom: 15px;
+        }
+    </style>
+    <!-- Подключаем DataTables стили -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.css">
+    <!-- Подключаем jQuery и DataTables -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-button">Назад</a>
+        <h1 id="parameter-title">История параметра</h1>
+        <div id="loading" class="loading">Загрузка данных...</div>
+        <table id="parameter-table" class="display" style="width:100%; display: none;">
+            <thead>
+                <tr>
+                    <th>Время</th>
+                    <th>Значение параметра</th>
+                </tr>
+            </thead>
+            <tbody id="parameter-data"></tbody>
+        </table>
+    </div>
+    <script>
+        // Функция для получения данных параметра через API с серверной пагинацией
+        async function fetchParameterData(computerName, diskName, parameterName, page, length) {
+            try {
+                // Добавляем параметры пагинации к запросу
+                const response = await fetch(`/api/disk/${computerName}/${diskName}?page=${page}&length=${length}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const result = await response.json();
+                // Преобразуем данные в нужный формат
+                const data = result.data.map(item => ({
+                    timestamp: item.timestamp,
+                    value: item[parameterName]
+                }));
+                return { data, total: result.recordsTotal };
+            } catch (error) {
+                console.error("Error fetching parameter data:", error);
+                return { data: [], total: 0 };
+            }
+        }
+
+        // Инициализация DataTables с серверной обработкой
+        function initializeDataTable(computerName, diskName, parameterName) {
+            $('#parameter-table').DataTable({
+                serverSide: true,  // Включаем серверную обработку
+                ajax: async (data, callback) => {
+                    const page = Math.ceil(data.start / data.length) + 1;  // Рассчитываем страницу
+                    const result = await fetchParameterData(computerName, diskName, parameterName, page, data.length);
+                    // Передаем данные обратно в DataTables
+                    callback({
+                        draw: data.draw,
+                        recordsTotal: result.total,
+                        recordsFiltered: result.total,
+                        data: result.data.map(item => [
+                            new Date(item.timestamp).toLocaleString(),
+                            item.value !== null ? item.value : 'N/A'
+                        ])
+                    });
+                },
+                order: [[0, 'desc']],  // Сортировка по времени (по убыванию)
+                pagingType: 'simple_numbers',  // Упрощенная пагинация
+                searching: false,  // Отключаем поиск
+                dom: 'lfrtip',  // Интерфейс с минимальными элементами управления
+                language: {
+                    paginate: {
+                        first: "Первый",
+                        last: "Последний",
+                        next: "Следующий",
+                        previous: "Предыдущий"
+                    },
+                    info: "Показано _START_ до _END_ из _TOTAL_ записей",
+                    infoEmpty: "Записи отсутствуют",
+                    lengthMenu: "Показать _MENU_ записей"
+                }
+            });
+            document.getElementById('parameter-table').style.display = 'table';
+        }
+
+        // Загрузка данных при загрузке страницы
+        document.addEventListener('DOMContentLoaded', () => {
+            const pathParts = window.location.pathname.split('/');
+            const computerName = decodeURIComponent(pathParts[2]);
+            const diskName = decodeURIComponent(pathParts[3]);
+            const parameterName = decodeURIComponent(pathParts[5]);
+
+            document.getElementById('parameter-title').textContent = `История параметра: ${parameterName} для диска ${diskName} на компьютере ${computerName}`;
+
+            initializeDataTable(computerName, diskName, parameterName);
+            document.getElementById('loading').style.display = 'none';
+        });
+    </script>
+</body>
+</html>
