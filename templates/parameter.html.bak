@@ -85,20 +85,20 @@
     </div>
     <script>
         // Функция для получения данных параметра через API с серверной пагинацией
-        async function fetchParameterData(computerName, diskName, parameterName, page, length) {
+        async function fetchParameterData(computerName, diskName, parameterName, start, length) {
             try {
-                // Запрашиваем данные параметра с сервера
-                const response = await fetch(`/api/disk/${computerName}/${diskName}/parameter/${parameterName}?page=${page}&length=${length}`);
+                // Запрашиваем данные параметра с сервера, учитывая start и length для пагинации
+                const response = await fetch(`/api/disk/${computerName}/${diskName}/parameter/${parameterName}?start=${start}&length=${length}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const result = await response.json();
                 // Преобразуем данные в нужный формат
-                const data = result.map(item => ({
+                const data = result.data.map(item => ({
                     timestamp: new Date(item.timestamp).toLocaleString(),  // Преобразуем дату в читабельный формат
                     value: item.value !== null ? item.value : 'N/A'        // Обрабатываем возможные пустые значения
                 }));
-                return { data, total: result.length };
+                return { data, total: result.recordsTotal };
             } catch (error) {
                 console.error("Error fetching parameter data:", error);
                 return { data: [], total: 0 };
@@ -109,23 +109,25 @@
         function initializeDataTable(computerName, diskName, parameterName) {
             $('#parameter-table').DataTable({
                 serverSide: true,
+                processing: true, // Включаем индикацию загрузки данных
                 ajax: async (data, callback) => {
-                    const page = Math.ceil(data.start / data.length) + 1;
-                    const result = await fetchParameterData(computerName, diskName, parameterName, page, data.length);
+                    // Используем параметры start и length для пагинации
+                    const result = await fetchParameterData(computerName, diskName, parameterName, data.start, data.length);
                     callback({
                         draw: data.draw,
-                        recordsTotal: result.total,
-                        recordsFiltered: result.total,
+                        recordsTotal: result.total,  // Общее количество записей
+                        recordsFiltered: result.total,  // Количество записей после фильтрации
                         data: result.data.map(item => [
-                            item.timestamp,  // Отображаем дату в формате, преобразованном через new Date()
+                            item.timestamp,  // Дата
                             item.value       // Значение параметра
                         ])
                     });
                 },
-                order: [[0, 'desc']],
-                pagingType: 'simple_numbers',
-                searching: false,
-                dom: 'lfrtip',
+                pageLength: 10,  // Количество записей по умолчанию
+                order: [[0, 'desc']],  // Сортировка по убыванию времени
+                pagingType: 'simple_numbers',  // Тип пагинации
+                searching: false,  // Отключаем поиск
+                dom: 'lfrtip',  // Элементы управления (выбор длины, пагинация)
                 language: {
                     paginate: {
                         first: "Первый",
@@ -145,7 +147,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             const pathParts = window.location.pathname.split('/');
             const computerName = decodeURIComponent(pathParts[2]);
-            const diskName = decodeURIComponent(decodeURIComponent(pathParts[3]));  // Двойное декодирование
+            const diskName = decodeURIComponent(pathParts[3]);
             const parameterName = decodeURIComponent(pathParts[5]);
 
             document.getElementById('parameter-title').textContent = `История параметра: ${parameterName} для диска ${diskName} на компьютере ${computerName}`;
