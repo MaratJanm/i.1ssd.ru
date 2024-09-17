@@ -35,16 +35,15 @@ class Temperature(db.Model):
     parameter_231 = db.Column(db.BigInteger, nullable=True)
 
 @app.route('/api/disk/<computer_name>/<disk_name>/parameter/<parameter_name>', methods=['GET'])
-@app.route('/api/disk/<computer_name>/<disk_name>/parameter/<parameter_name>', methods=['GET'])
 def get_parameter_data(computer_name, disk_name, parameter_name):
     try:
-        # Получаем параметры для сортировки и пагинации
-        start = int(request.args.get('start', 0))
-        length = int(request.args.get('length', 10))
-        order_column = int(request.args.get('order[0][column]', 0))  # Столбец для сортировки
-        order_dir = request.args.get('order[0][dir]', 'desc')  # Направление сортировки
+        # Получаем параметры пагинации и сортировки
+        start = int(request.args.get('start', 0))  # Начальная точка выборки
+        length = int(request.args.get('length', 10))  # Количество записей на страницу
+        order_column = int(request.args.get('order[0][column]', 0))  # Индекс сортируемого столбца
+        order_dir = request.args.get('order[0][dir]', 'desc')  # Направление сортировки: asc или desc
 
-        # Определяем поле для сортировки
+        # Определяем, по какому полю сортировать
         if order_column == 0:  # Сортировка по времени
             order_by = Temperature.timestamp
         elif order_column == 1:  # Сортировка по значению параметра
@@ -58,7 +57,7 @@ def get_parameter_data(computer_name, disk_name, parameter_name):
         else:
             order_by = order_by.desc()
 
-        # Получаем данные с учетом пагинации и сортировки
+        # Получаем данные с учётом пагинации и сортировки
         parameter_data = Temperature.query.filter_by(computer_name=computer_name, disk=disk_name)\
                                           .with_entities(Temperature.timestamp, getattr(Temperature, parameter_name))\
                                           .order_by(order_by)\
@@ -66,7 +65,7 @@ def get_parameter_data(computer_name, disk_name, parameter_name):
 
         total_records = Temperature.query.filter_by(computer_name=computer_name, disk=disk_name).count()
 
-        # Преобразуем данные для ответа
+        # Преобразуем данные в JSON-формат
         result = [{"timestamp": record.timestamp.isoformat(), "value": getattr(record, parameter_name)} for record in parameter_data]
 
         return jsonify({

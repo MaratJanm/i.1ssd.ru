@@ -83,78 +83,87 @@
             <tbody id="parameter-data"></tbody>
         </table>
     </div>
-    <script>
-        // Функция для получения данных параметра через API с серверной пагинацией
-        async function fetchParameterData(computerName, diskName, parameterName, start, length) {
-            try {
-                // Запрашиваем данные параметра с сервера, учитывая start и length для пагинации
-                const response = await fetch(`/api/disk/${computerName}/${diskName}/parameter/${parameterName}?start=${start}&length=${length}`);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                const result = await response.json();
-                // Преобразуем данные в нужный формат
-                const data = result.data.map(item => ({
-                    timestamp: new Date(item.timestamp).toLocaleString(),  // Преобразуем дату в читабельный формат
-                    value: item.value !== null ? item.value : 'N/A'        // Обрабатываем возможные пустые значения
-                }));
-                return { data, total: result.recordsTotal };
-            } catch (error) {
-                console.error("Error fetching parameter data:", error);
-                return { data: [], total: 0 };
+<script>
+    // Функция для получения данных с серверной пагинацией
+    async function fetchParameterData(computerName, diskName, parameterName, start, length, order) {
+        try {
+            // Отправляем запрос с параметрами пагинации и сортировки
+            let url = `/api/disk/${computerName}/${diskName}/parameter/${parameterName}?start=${start}&length=${length}`;
+            if (order && order.length > 0) {
+                url += `&order[0][column]=${order[0].column}&order[0][dir]=${order[0].dir}`;
             }
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error("Error fetching parameter data:", error);
+            return { data: [], total: 0 };
         }
+    }
 
-        // Инициализация DataTables с серверной обработкой
-        function initializeDataTable(computerName, diskName, parameterName) {
-            $('#parameter-table').DataTable({
-                serverSide: true,
-                processing: false, // Включаем индикацию загрузки данных
-                ajax: async (data, callback) => {
-                    // Используем параметры start и length для пагинации
-                    const result = await fetchParameterData(computerName, diskName, parameterName, data.start, data.length);
-                    callback({
-                        draw: data.draw,
-                        recordsTotal: result.total,  // Общее количество записей
-                        recordsFiltered: result.total,  // Количество записей после фильтрации
-                        data: result.data.map(item => [
-                            item.timestamp,  // Дата
-                            item.value       // Значение параметра
-                        ])
-                    });
+    // Инициализация таблицы DataTables
+    function initializeDataTable(computerName, diskName, parameterName) {
+        $('#parameter-table').DataTable({
+            serverSide: true,
+            processing: false,  // Показываем индикатор загрузки данных
+            ajax: async (data, callback) => {
+                // Запрашиваем данные с сервера
+                const result = await fetchParameterData(computerName, diskName, parameterName, data.start, data.length, data.order);
+                callback({
+                    draw: data.draw,
+                    recordsTotal: result.recordsTotal,
+                    recordsFiltered: result.recordsFiltered,
+                    data: result.data
+                });
+            },
+            pageLength: 10,  // Количество записей на страницу
+            order: [[0, 'desc']],  // Сортировка по времени по умолчанию
+            columns: [
+                {
+                    "data": "timestamp",  // Привязка данных для колонки времени
+                    "render": function (data, type, row) {
+                        return new Date(data).toLocaleString();  // Форматирование даты
+                    }
                 },
-                pageLength: 10,  // Количество записей по умолчанию
-                order: [[0, 'desc']],  // Сортировка по убыванию времени
-                pagingType: 'simple_numbers',  // Тип пагинации
-                searching: false,  // Отключаем поиск
-                dom: 'lfrtip',  // Элементы управления (выбор длины, пагинация)
-                language: {
-                    paginate: {
-                        first: "Первый",
-                        last: "Последний",
-                        next: "Следующий",
-                        previous: "Предыдущий"
-                    },
-                    info: "Показано _START_ до _END_ из _TOTAL_ записей",
-                    infoEmpty: "Записи отсутствуют",
-                    lengthMenu: "Показать _MENU_ записей"
+                {
+                    "data": "value",  // Привязка данных для колонки значения параметра
+                    "render": function (data, type, row) {
+                        return data !== null ? data : 'N/A';  // Обработка возможных пустых значений
+                    }
                 }
-            });
-            document.getElementById('parameter-table').style.display = 'table';
-        }
-
-        // Загрузка данных при загрузке страницы
-        document.addEventListener('DOMContentLoaded', () => {
-            const pathParts = window.location.pathname.split('/');
-            const computerName = decodeURIComponent(pathParts[2]);
-            const diskName = decodeURIComponent(pathParts[3]);
-            const parameterName = decodeURIComponent(pathParts[5]);
-
-            document.getElementById('parameter-title').textContent = `История параметра: ${parameterName} для диска ${diskName} на компьютере ${computerName}`;
-
-            initializeDataTable(computerName, diskName, parameterName);
-            document.getElementById('loading').style.display = 'none';
+            ],
+            pagingType: 'simple_numbers',
+            searching: false,
+            dom: 'lfrtip',
+            language: {
+                paginate: {
+                    first: "Первый",
+                    last: "Последний",
+                    next: "Следующий",
+                    previous: "Предыдущий"
+                },
+                info: "Показано _START_ до _END_ из _TOTAL_ записей",
+                infoEmpty: "Записи отсутствуют",
+                lengthMenu: "Показать _MENU_ записей"
+            }
         });
-    </script>
+        document.getElementById('parameter-table').style.display = 'table';  // Показываем таблицу
+    }
+
+    // При загрузке страницы инициализируем таблицу
+    document.addEventListener('DOMContentLoaded', () => {
+        const pathParts = window.location.pathname.split('/');
+        const computerName = decodeURIComponent(pathParts[2]);
+        const diskName = decodeURIComponent(pathParts[3]);
+        const parameterName = decodeURIComponent(pathParts[5]);
+
+        document.getElementById('parameter-title').textContent = `История параметра: ${parameterName} для диска ${diskName} на компьютере ${computerName}`;
+        initializeDataTable(computerName, diskName, parameterName);
+    });
+</script>
+
+
 </body>
 </html>
