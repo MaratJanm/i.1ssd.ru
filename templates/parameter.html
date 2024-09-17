@@ -58,7 +58,6 @@
             text-align: center;
             margin-top: 20px;
         }
-        /* Добавляем отступ для элементов управления таблицей */
         .dataTables_wrapper .dataTables_length {
             margin-bottom: 15px;
         }
@@ -86,18 +85,18 @@
     </div>
     <script>
         // Функция для получения данных параметра через API с серверной пагинацией
-        async function fetchParameterData(computerName, diskName, parameterName, page, length) {
+        async function fetchParameterData(computerName, diskName, parameterName, start, length) {
             try {
-                // Добавляем параметры пагинации к запросу
-                const response = await fetch(`/api/disk/${computerName}/${diskName}?page=${page}&length=${length}`);
+                // Запрашиваем данные параметра с сервера, учитывая start и length для пагинации
+                const response = await fetch(`/api/disk/${computerName}/${diskName}/parameter/${parameterName}?start=${start}&length=${length}`);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 const result = await response.json();
                 // Преобразуем данные в нужный формат
                 const data = result.data.map(item => ({
-                    timestamp: item.timestamp,
-                    value: item[parameterName]
+                    timestamp: new Date(item.timestamp).toLocaleString(),  // Преобразуем дату в читабельный формат
+                    value: item.value !== null ? item.value : 'N/A'        // Обрабатываем возможные пустые значения
                 }));
                 return { data, total: result.recordsTotal };
             } catch (error) {
@@ -109,25 +108,26 @@
         // Инициализация DataTables с серверной обработкой
         function initializeDataTable(computerName, diskName, parameterName) {
             $('#parameter-table').DataTable({
-                serverSide: true,  // Включаем серверную обработку
+                serverSide: true,
+                processing: true, // Включаем индикацию загрузки данных
                 ajax: async (data, callback) => {
-                    const page = Math.ceil(data.start / data.length) + 1;  // Рассчитываем страницу
-                    const result = await fetchParameterData(computerName, diskName, parameterName, page, data.length);
-                    // Передаем данные обратно в DataTables
+                    // Используем параметры start и length для пагинации
+                    const result = await fetchParameterData(computerName, diskName, parameterName, data.start, data.length);
                     callback({
                         draw: data.draw,
-                        recordsTotal: result.total,
-                        recordsFiltered: result.total,
+                        recordsTotal: result.total,  // Общее количество записей
+                        recordsFiltered: result.total,  // Количество записей после фильтрации
                         data: result.data.map(item => [
-                            new Date(item.timestamp).toLocaleString(),
-                            item.value !== null ? item.value : 'N/A'
+                            item.timestamp,  // Дата
+                            item.value       // Значение параметра
                         ])
                     });
                 },
-                order: [[0, 'desc']],  // Сортировка по времени (по убыванию)
-                pagingType: 'simple_numbers',  // Упрощенная пагинация
+                pageLength: 10,  // Количество записей по умолчанию
+                order: [[0, 'desc']],  // Сортировка по убыванию времени
+                pagingType: 'simple_numbers',  // Тип пагинации
                 searching: false,  // Отключаем поиск
-                dom: 'lfrtip',  // Интерфейс с минимальными элементами управления
+                dom: 'lfrtip',  // Элементы управления (выбор длины, пагинация)
                 language: {
                     paginate: {
                         first: "Первый",

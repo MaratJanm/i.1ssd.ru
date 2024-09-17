@@ -15,7 +15,7 @@ class Temperature(db.Model):
     computer_name = db.Column(db.String(50), nullable=False)
     disk = db.Column(db.String(50), nullable=False)
     temperature = db.Column(db.Float, nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     # Дополнительные параметры диска
     parameter_241 = db.Column(db.BigInteger, nullable=True)
@@ -27,15 +27,44 @@ class Temperature(db.Model):
     parameter_174 = db.Column(db.BigInteger, nullable=True)
     parameter_184 = db.Column(db.BigInteger, nullable=True)
     parameter_187 = db.Column(db.BigInteger, nullable=True)
-    parameter_194 = db.Column(db.BigInteger, nullable=True)
     parameter_192 = db.Column(db.BigInteger, nullable=True)
-    parameter_199 = db.Column(db.BigInteger, nullable=True)
+    parameter_194 = db.Column(db.BigInteger, nullable=True)
     parameter_197 = db.Column(db.BigInteger, nullable=True)
+    parameter_199 = db.Column(db.BigInteger, nullable=True)
     parameter_230 = db.Column(db.BigInteger, nullable=True)
     parameter_231 = db.Column(db.BigInteger, nullable=True)
 
-    def __repr__(self):
-        return f"<Temperature {self.computer_name} - {self.disk} - {self.temperature}°C - {self.parameter_241}>"
+@app.route('/api/disk/<computer_name>/<disk_name>/parameter/<parameter_name>', methods=['GET'])
+def get_parameter_data(computer_name, disk_name, parameter_name):
+    try:
+        # Получаем параметры пагинации от DataTables
+        start = int(request.args.get('start', 0))  # Начальная точка выборки
+        length = int(request.args.get('length', 10))  # Количество записей на страницу
+
+        # Проверяем существование параметра
+        if parameter_name == 'temperature' or hasattr(Temperature, parameter_name):
+            # Получаем данные с учётом пагинации
+            parameter_data = Temperature.query.filter_by(computer_name=computer_name, disk=disk_name)\
+                                              .with_entities(Temperature.timestamp, getattr(Temperature, parameter_name))\
+                                              .order_by(Temperature.timestamp.desc())\
+                                              .offset(start).limit(length).all()
+
+            # Общее количество записей без учета пагинации
+            total_records = Temperature.query.filter_by(computer_name=computer_name, disk=disk_name).count()
+
+            result = [{"timestamp": record.timestamp, "value": getattr(record, parameter_name)} for record in parameter_data]
+
+            return jsonify({
+                "draw": request.args.get('draw', 1),  # DataTables использует draw для обновления таблицы
+                "recordsTotal": total_records,  # Общее количество записей
+                "recordsFiltered": total_records,  # Количество записей после фильтрации (если есть фильтры)
+                "data": result  # Данные для текущей страницы
+            }), 200
+        else:
+            return jsonify({"message": f"Parameter '{parameter_name}' not found"}), 404
+    except Exception as e:
+        app.logger.error(f"Error fetching parameter data: {e}")
+        return jsonify({"message": "Internal Server Error"}), 500
 
 # Модель для хранения TBW и комментариев
 class AdditionalInfo(db.Model):
@@ -208,6 +237,50 @@ def get_temperatures():
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/disk/<computer_name>/<disk_name>', methods=['GET'])
+def disk_page(computer_name, disk_name):
+    return render_template('disk.html', computer_name=computer_name, disk_name=disk_name)
+
+@app.route('/api/disk/latest/<computer_name>/<disk_name>', methods=['GET'])
+def get_latest_disk_data(computer_name, disk_name):
+    try:
+        # Запрашиваем последние данные о температуре и параметрах для диска
+        disk_data = Temperature.query.filter_by(computer_name=computer_name, disk=disk_name)\
+                                     .order_by(Temperature.timestamp.desc())\
+                                     .limit(1).all()
+
+        if not disk_data:
+            return jsonify([]), 200  # Возвращаем пустой массив, если данных нет
+
+        result = [{
+            "timestamp": record.timestamp,
+            "parameter_241": record.parameter_241,
+            "parameter_243": record.parameter_243,
+            "parameter_228": record.parameter_228,
+            "parameter_005": record.parameter_005,
+            "parameter_009": record.parameter_009,
+            "parameter_170": record.parameter_170,
+            "parameter_174": record.parameter_174,
+            "parameter_184": record.parameter_184,
+            "parameter_187": record.parameter_187,
+            "parameter_194": record.parameter_194,
+            "parameter_192": record.parameter_192,
+            "parameter_199": record.parameter_199,
+            "parameter_197": record.parameter_197,
+            "parameter_230": record.parameter_230,
+            "parameter_231": record.parameter_231,
+            "temperature": record.temperature
+        } for record in disk_data]
+
+        return jsonify(result), 200
+    except Exception as e:  # Исправляем catch на except
+        app.logger.error(f"Error fetching disk data: {e}")
+        return jsonify({"message": "Internal Server Error"}), 500
+@app.route('/disk/<computer_name>/<disk_name>/parameter/<parameter_name>', methods=['GET'])
+def parameter_page(computer_name, disk_name, parameter_name):
+    return render_template('parameter.html', computer_name=computer_name, disk_name=disk_name, parameter_name=parameter_name)
+
 
 if __name__ == "__main__":
     try:
