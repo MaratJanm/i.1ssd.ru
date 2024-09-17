@@ -109,7 +109,7 @@
         function initializeDataTable(computerName, diskName, parameterName) {
             $('#parameter-table').DataTable({
                 serverSide: true,
-                processing: true, // Включаем индикацию загрузки данных
+                processing: false, // Включаем индикацию загрузки данных
                 ajax: async (data, callback) => {
                     // Используем параметры start и length для пагинации
                     const result = await fetchParameterData(computerName, diskName, parameterName, data.start, data.length);
