@@ -140,8 +140,9 @@
 <body>
     <div class="container">
         <!-- Блок для ссылки "Скачать клиент" и кнопки "Выйти", обе в правом углу -->
+		<a href="/download" class="download-link">Скачать клиент</a>
         <div class="top-links">
-            <a href="/download" class="download-link">Скачать клиент</a>
+
             <form action="{{ url_for('logout') }}" method="POST" style="display: inline;">
                 <button type="submit" class="logout-link">Выйти</button>
             </form>

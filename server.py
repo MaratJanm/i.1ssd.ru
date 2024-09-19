@@ -1,13 +1,23 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, url_for, flash, redirect
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
+from flask_bcrypt import Bcrypt
+from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
+from forms import RegistrationForm, LoginForm
+from models import User, db
 
 app = Flask(__name__)
 
 # Конфигурация для подключения к PostgreSQL
+app.config['SECRET_KEY'] = '12345678'  # Не забудь установить секретный ключ для безопасности
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:12345678@localhost:5432/temperatures'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
+
+db.init_app(app)
+# Конфигурация для bcrypt и login manager
+bcrypt = Bcrypt(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
 
 # Модель для хранения данных о температуре и параметрах диска
 class Temperature(db.Model):
@@ -246,8 +256,17 @@ def get_temperatures():
         print(f"Ошибка при получении данных: {e}")
         return jsonify({"message": "Internal Server Error"}), 500
 
+@app.route("/logout", methods=["POST"])
+@login_required
+def logout():
+    logout_user()
+    flash("Вы успешно вышли из системы.", "info")
+    return redirect(url_for('login'))
+
+
 # Главная страница
 @app.route('/')
+@login_required
 def index():
     return render_template('index.html')
 
@@ -294,7 +313,38 @@ def get_latest_disk_data(computer_name, disk_name):
 def parameter_page(computer_name, disk_name, parameter_name):
     return render_template('parameter.html', computer_name=computer_name, disk_name=disk_name, parameter_name=parameter_name)
 
+@app.route("/register", methods=['GET', 'POST'])
+def register():
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
+        user = User(username=form.username.data, email=form.email.data, password=hashed_password)
+        db.session.add(user)
+        db.session.commit()
+        flash('Ваш аккаунт создан!', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html', form=form)
+    
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+    
+    
+@app.route("/login", methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(email=form.email.data).first()
+        if user and bcrypt.check_password_hash(user.password, form.password.data):
+            login_user(user)
+            flash('Вы успешно вошли!', 'success')
+            return redirect(url_for('index'))  # Перенаправление на защищённую страницу
+        else:
+            flash('Вход не удался. Проверьте email и пароль.', 'danger')
+    return render_template('login.html', form=form)
 
+    
+    
 if __name__ == "__main__":
     try:
         with app.app_context():
