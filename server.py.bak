@@ -1,13 +1,23 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, url_for, flash, redirect
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
+from flask_bcrypt import Bcrypt
+from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
+from forms import RegistrationForm, LoginForm
+from models import User, db
 
 app = Flask(__name__)
 
 # Конфигурация для подключения к PostgreSQL
+app.config['SECRET_KEY'] = '12345678'  # Не забудь установить секретный ключ для безопасности
 app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:12345678@localhost:5432/temperatures'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
+
+db.init_app(app)
+# Конфигурация для bcrypt и login manager
+bcrypt = Bcrypt(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
 
 # Модель для хранения данных о температуре и параметрах диска
 class Temperature(db.Model):
@@ -35,15 +45,16 @@ class Temperature(db.Model):
     parameter_231 = db.Column(db.BigInteger, nullable=True)
 
 @app.route('/api/disk/<computer_name>/<disk_name>/parameter/<parameter_name>', methods=['GET'])
+@app.route('/api/disk/<computer_name>/<disk_name>/parameter/<parameter_name>', methods=['GET'])
 def get_parameter_data(computer_name, disk_name, parameter_name):
     try:
-        # Получаем параметры пагинации и сортировки
-        start = int(request.args.get('start', 0))  # Начальная точка выборки
-        length = int(request.args.get('length', 10))  # Количество записей на страницу
-        order_column = int(request.args.get('order[0][column]', 0))  # Индекс сортируемого столбца
-        order_dir = request.args.get('order[0][dir]', 'desc')  # Направление сортировки: asc или desc
+        # Получаем параметры для сортировки и пагинации
+        start = int(request.args.get('start', 0))
+        length = int(request.args.get('length', 10))
+        order_column = int(request.args.get('order[0][column]', 0))  # Столбец для сортировки
+        order_dir = request.args.get('order[0][dir]', 'desc')  # Направление сортировки
 
-        # Определяем, по какому полю сортировать
+        # Определяем поле для сортировки
         if order_column == 0:  # Сортировка по времени
             order_by = Temperature.timestamp
         elif order_column == 1:  # Сортировка по значению параметра
@@ -57,7 +68,7 @@ def get_parameter_data(computer_name, disk_name, parameter_name):
         else:
             order_by = order_by.desc()
 
-        # Получаем данные с учётом пагинации и сортировки
+        # Получаем данные с учетом пагинации и сортировки
         parameter_data = Temperature.query.filter_by(computer_name=computer_name, disk=disk_name)\
                                           .with_entities(Temperature.timestamp, getattr(Temperature, parameter_name))\
                                           .order_by(order_by)\
@@ -65,7 +76,7 @@ def get_parameter_data(computer_name, disk_name, parameter_name):
 
         total_records = Temperature.query.filter_by(computer_name=computer_name, disk=disk_name).count()
 
-        # Преобразуем данные в JSON-формат
+        # Преобразуем данные для ответа
         result = [{"timestamp": record.timestamp.isoformat(), "value": getattr(record, parameter_name)} for record in parameter_data]
 
         return jsonify({
@@ -245,8 +256,17 @@ def get_temperatures():
         print(f"Ошибка при получении данных: {e}")
         return jsonify({"message": "Internal Server Error"}), 500
 
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    flash('Вы вышли из системы.', 'info')
+    return redirect(url_for('login'))
+
+
 # Главная страница
 @app.route('/')
+@login_required
 def index():
     return render_template('index.html')
 
@@ -293,7 +313,38 @@ def get_latest_disk_data(computer_name, disk_name):
 def parameter_page(computer_name, disk_name, parameter_name):
     return render_template('parameter.html', computer_name=computer_name, disk_name=disk_name, parameter_name=parameter_name)
 
+@app.route("/register", methods=['GET', 'POST'])
+def register():
+    form = RegistrationForm()
+    if form.validate_on_submit():
+        hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
+        user = User(username=form.username.data, email=form.email.data, password=hashed_password)
+        db.session.add(user)
+        db.session.commit()
+        flash('Ваш аккаунт создан!', 'success')
+        return redirect(url_for('login'))
+    return render_template('register.html', form=form)
+    
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+    
+    
+@app.route("/login", methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(email=form.email.data).first()
+        if user and bcrypt.check_password_hash(user.password, form.password.data):
+            login_user(user)
+            flash('Вы успешно вошли!', 'success')
+            return redirect(url_for('index'))  # Перенаправление на защищённую страницу
+        else:
+            flash('Вход не удался. Проверьте email и пароль.', 'danger')
+    return render_template('login.html', form=form)
 
+    
+    
 if __name__ == "__main__":
     try:
         with app.app_context():
