@@ -5,6 +5,7 @@ from flask_bcrypt import Bcrypt
 from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
 from forms import RegistrationForm, LoginForm
 from models import User, db
+import hashlib
 
 app = Flask(__name__)
 
@@ -238,8 +239,14 @@ def get_temperatures():
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 50))
         offset = (page - 1) * per_page
+        # Получаем email текущего пользователя
+        user_email = current_user.email
+        
+        # Создаем хеш email
+        email_hash = hashlib.sha256(user_email.encode()).hexdigest()
 
-        temperatures = Temperature.query.order_by(Temperature.timestamp.desc()).offset(offset).limit(per_page).all()
+        #temperatures = Temperature.query.order_by(Temperature.timestamp.desc()).offset(offset).limit(per_page).all()
+        temperatures = Temperature.query.filter_by(company=email_hash).order_by(Temperature.timestamp.desc()).offset(offset).limit(per_page).all()
 
         result = [
             {
@@ -256,11 +263,11 @@ def get_temperatures():
         print(f"Ошибка при получении данных: {e}")
         return jsonify({"message": "Internal Server Error"}), 500
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 @login_required
 def logout():
     logout_user()
-    flash('Вы вышли из системы.', 'info')
+    flash("Вы успешно вышли из системы.", "info")
     return redirect(url_for('login'))
 
 

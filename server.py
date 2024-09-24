@@ -5,6 +5,7 @@ from flask_bcrypt import Bcrypt
 from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
 from forms import RegistrationForm, LoginForm
 from models import User, db
+import hashlib
 
 app = Flask(__name__)
 
@@ -26,6 +27,7 @@ class Temperature(db.Model):
     disk = db.Column(db.String(50), nullable=False)
     temperature = db.Column(db.Float, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    company = db.Column(db.String(50), nullable=False)
 
     # Дополнительные параметры диска
     parameter_241 = db.Column(db.BigInteger, nullable=True)
@@ -238,8 +240,14 @@ def get_temperatures():
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 50))
         offset = (page - 1) * per_page
+        # Получаем email текущего пользователя
+        user_email = current_user.email
+        
+        # Создаем хеш email
+        email_hash = hashlib.sha256(user_email.encode()).hexdigest()
 
-        temperatures = Temperature.query.order_by(Temperature.timestamp.desc()).offset(offset).limit(per_page).all()
+        #temperatures = Temperature.query.order_by(Temperature.timestamp.desc()).offset(offset).limit(per_page).all()
+        temperatures = Temperature.query.filter_by(company=email_hash).order_by(Temperature.timestamp.desc()).offset(offset).limit(per_page).all()
 
         result = [
             {
