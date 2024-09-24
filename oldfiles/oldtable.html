@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Данные параметра</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 24px;
+            color: #333333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        .table-container {
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f2f5;
+        }
+        .back-button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .back-button:hover {
+            background-color: #0056b3;
+        }
+        .loading {
+            font-size: 18px;
+            color: #007bff;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .dataTables_wrapper .dataTables_length {
+            margin-bottom: 20px;
+        }
+        .dataTables_wrapper .dataTables_paginate {
+            margin-top: 20px;
+        }
+        .dataTables_paginate input {
+            width: 50px;
+            text-align: center;
+            margin-right: 10px;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            h1 {
+                font-size: 20px;
+            }
+            th, td {
+                padding: 8px;
+                font-size: 12px; /* Уменьшение шрифта для мобильных устройств */
+            }
+            .back-button {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+        }
+    </style>
+    <!-- Подключение библиотеки DataTables -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.css">
+    <script type="text/javascript" charset="utf8" src="https://code.jquery.com/jquery-3.5.1.js"></script>
+    <script type="text/javascript" charset="utf8" src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.js"></script>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-button">Назад</a>
+        <h1 id="parameter-title"></h1>
+        <div class="loading" id="loading">Загрузка данных...</div>
+        <div class="table-container">
+            <table id="parameter-table" class="display" style="width: 100%; display: none;">
+                <thead>
+                    <tr>
+                        <th>Время</th>
+                        <th>Значение</th>
+                    </tr>
+                </thead>
+                <tbody id="parameter-data"></tbody>
+            </table>
+        </div>
+    </div>
+    <script>
+        async function fetchParameterData(computerName, diskName, parameter) {
+            try {
+                const response = await fetch(`/api/disk/${computerName}/${diskName}`);
+                console.log(`Request URL: /api/disk/${computerName}/${diskName}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log("Fetched parameter data:", data);
+
+                if (!data || data.length === 0) {
+                    console.log("No data found for the given computer and disk.");
+                    return [];
+                }
+
+                return data.map(item => {
+                    const value = parameter === 'temperature' ? item.temperature : item.parameters[parameter];
+                    if (value !== undefined && value !== null) {
+                        return {
+                            timestamp: item.timestamp,
+                            value: value
+                        };
+                    }
+                    return null;
+                }).filter(item => item !== null);
+            } catch (error) {
+                console.error("Error fetching parameter data:", error);
+                return [];
+            }
+        }
+
+        function populateTable(data) {
+            const tableBody = document.getElementById('parameter-data');
+            tableBody.innerHTML = ''; // Clear the table before updating
+
+            if (data.length === 0) {
+                console.log("No data available for the selected parameter.");
+                tableBody.innerHTML = '<tr><td colspan="2">Нет данных для отображения</td></tr>';
+                return;
+            }
+
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${new Date(item.timestamp).toLocaleString()}</td>
+                    <td>${item.value}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+
+            // Инициализация DataTables с сортировкой по умолчанию по столбцу "Время" в порядке убывания и без строки поиска
+            const table = $('#parameter-table').DataTable({
+                order: [[0, 'desc']],
+                pagingType: 'simple_numbers', // Убираем Previous и Next, оставляем номера страниц
+                searching: false, // Удаление строки поиска
+                dom: 'lfrtip', // Удаление строки поиска, но оставление других элементов
+                language: {
+                    paginate: {
+                        first: "First",
+                        last: "Last"
+                    }
+                }
+            });
+
+            // Добавление текстового поля и кнопки для перехода на страницу
+            $('<div class="dataTables_paginate_jump">' +
+                '<input type="number" id="page-number" min="1" placeholder="Стр." />' +
+                '<button id="go-to-page">Перейти</button>' +
+              '</div>').appendTo('.dataTables_paginate');
+
+            $('#go-to-page').on('click', function() {
+                const pageNumber = parseInt($('#page-number').val(), 10) - 1;
+                if (!isNaN(pageNumber) && pageNumber >= 0 && pageNumber < table.page.info().pages) {
+                    table.page(pageNumber).draw(false);
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const computerName = urlParams.get('computerName');
+            const diskName = decodeURIComponent(urlParams.get('diskName'));
+            const parameter = urlParams.get('parameter');
+
+            console.log(`Fetching data for computer: ${computerName}, disk: ${diskName}, parameter: ${parameter}`);
+
+            document.getElementById('parameter-title').textContent = `Данные для параметра ${parameter} на диске: ${diskName} на компьютере: ${computerName}`;
+
+            const parameterData = await fetchParameterData(computerName, diskName, parameter);
+            console.log("Parameter data to populate table:", parameterData);
+
+            if (parameterData.length > 0) {
+                populateTable(parameterData);
+                document.getElementById('parameter-table').style.display = 'table';
+            } else {
+                document.getElementById('parameter-title').textContent += " - Нет данных для отображения.";
+            }
+
+            document.getElementById('loading').style.display = 'none';
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Данные диска</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 24px;
+            color: #333333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f2f5;
+        }
+        .back-button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .back-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-button">Назад</a>
+        <h1 id="disk-title"></h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>Время</th>
+                    <th>Температура (°C)</th>
+                    <th>Параметр 241</th>
+                </tr>
+            </thead>
+            <tbody id="disk-data"></tbody>
+        </table>
+    </div>
+    <script>
+        async function fetchDiskData(computerName, diskName) {
+            try {
+                const response = await fetch(`/api/disk/${computerName}/${diskName}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                console.log("Fetched disk data:", data);
+                return data;
+            } catch (error) {
+                console.error("Error fetching disk data:", error);
+                return [];
+            }
+        }
+
+        function populateTable(data) {
+            const tableBody = document.getElementById('disk-data');
+            tableBody.innerHTML = ''; // Clear the table before updating
+
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${new Date(item.timestamp).toLocaleString()}</td>
+                    <td>${item.temperature}</td>
+                    <td>${item.parameter241}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const pathParts = window.location.pathname.split('/');
+            const computerName = pathParts[2];
+            const diskName = pathParts[3];
+
+            document.getElementById('disk-title').textContent = `Данные для диска: ${diskName} на компьютере: ${computerName}`;
+
+            const diskData = await fetchDiskData(computerName, diskName);
+            populateTable(diskData);
+        });
+    </script>
+</body>
+</html>
