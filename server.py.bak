@@ -1,10 +1,14 @@
-from flask import Flask, request, jsonify, render_template, url_for, flash, redirect
+from flask import Flask, request, jsonify, render_template, url_for, flash, redirect, send_file, after_this_request
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 from flask_bcrypt import Bcrypt
 from flask_login import UserMixin, LoginManager, login_user, login_required, logout_user, current_user
 from forms import RegistrationForm, LoginForm
 from models import User, db
+import hashlib
+import zipfile
+import os
+import time
 
 app = Flask(__name__)
 
@@ -19,6 +23,159 @@ bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+# Путь к файлам
+CLIENT_PS1_PATH = './client.ps1'
+CLIENT_ZIP_PATH = './client.zip'
+TEMPLATE_ZIP_PATH = './client-template.zip'
+
+# Маршрут для генерации файла client.ps1 с заменой значения переменной $company
+@app.route('/generate-client', methods=['POST'])
+def generate_client():
+    try:
+        user_email = current_user.email
+        # Создаем хеш email
+        email_hash = hashlib.sha256(user_email.encode()).hexdigest()
+
+
+        # PowerShell скрипт с подстановкой значения хэша email
+        powershell_script = f'''
+        $logFilePath = ".\\client.log"
+        $apiUrl = "http://i.1ssd.ru/temperatures"
+        $company = "{email_hash}"  # Значение параметра company
+
+        # Функция для получения температуры дисков и параметров SMART
+        function Get-DiskData {{
+            $diskData = @()
+            $smartParameters = @('241', '243', '228', '005', '009', '170', '174', '184', '187', '194', '192', '199', '197', '230', '231')
+
+            # Получение данных о дисках с помощью Get-PhysicalDisk и Get-StorageReliabilityCounter
+            $disks = Get-PhysicalDisk | Sort-Object -Property Number
+            $index = 0
+            foreach ($disk in $disks) {{
+                $diskName = $disk.DeviceID
+                $reliabilityData = Get-StorageReliabilityCounter -PhysicalDisk $disk
+
+                $temperatureCelsius = $null
+                $parameters = @{{}}
+
+                if ($reliabilityData) {{
+                    $temperatureCelsius = $reliabilityData.Temperature
+
+                    # Получение параметров SMART
+                    $driveLetter = [char](97 + $index)  # 'a' начинается с 97 в ASCII
+                    $drivePath = "/dev/sd$driveLetter"
+                    Write-Output $drivePath
+                    $index++  # Увеличиваем счетчик после каждой итерации
+                    
+                    foreach ($param in $smartParameters) {{
+                        $output = & .\\smartctl.exe -A $drivePath | Select-String "$param"
+                        $pattern = '(\d+)$'
+
+                        if ($output -match $pattern) {{
+                            $matchedValue = $matches[1]
+                            $parameters[$param] = [int]$matchedValue  # Преобразование в целое число
+                        }} else {{
+                            $parameters[$param] = $null  # Если параметр не найден, отправляем как null
+                        }}
+                    }}
+                }}
+
+                $diskData += @{{ "disk" = $disk.FriendlyName; "temperature" = $temperatureCelsius; "parameters" = $parameters }}
+            }}
+
+            return $diskData
+        }}
+
+        # Функция для фильтрации данных
+        function Filter-DiskData {{
+            param ([array]$diskData)
+            return $diskData | Where-Object {{
+                $_.disk -ne $null -and
+                $_.temperature -ne $null -and 
+                $_.parameters -ne $null
+            }}
+        }}
+
+        # Функция для отправки данных на сервер
+        function Send-DataToServer {{
+            param ([string]$apiUrl, [string]$computerName, [array]$diskData, [string]$company)
+
+            $payload = @{{
+                computer_name = $computerName
+                company = $company  # Используем параметр company
+                temperatures = @()
+            }}
+
+            foreach ($data in $diskData) {{
+                $tempData = @{{
+                    disk = $data.disk
+                    temperature = $data.temperature
+                    parameters = $data.parameters
+                }}
+                $payload.temperatures += $tempData
+            }}
+
+            $jsonPayload = $payload | ConvertTo-Json -Depth 5
+            Write-Output "Отправляемый JSON-пейлоад: $jsonPayload"
+
+            try {{
+                $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Body $jsonPayload -ContentType "application/json"
+                Write-Output "Server response: $($response.message)" | Out-File $logFilePath -Append
+            }} catch {{
+                Write-Output "Ошибка при вызове API. Статус код: $($_.Exception.Response.StatusCode.Value__) Сообщение: $($_.Exception.Message)" | Out-File $logFilePath -Append
+            }}
+        }}
+
+        # Основной цикл
+        $computerName = $env:COMPUTERNAME
+
+        $diskData = Get-DiskData
+        $filteredDiskData = Filter-DiskData -diskData $diskData
+        Send-DataToServer -apiUrl $apiUrl -computerName $computerName -diskData $filteredDiskData -company $company
+        Start-Sleep -Seconds 5  # Отправка данных каждые 5 секунд
+        '''
+
+  # Записываем PowerShell-скрипт в файл client.ps1
+        with open(CLIENT_PS1_PATH, 'w') as ps_file:
+            ps_file.write(powershell_script)
+
+        # Создаем новый архив client.zip на основе client-template.zip
+        with zipfile.ZipFile(TEMPLATE_ZIP_PATH, 'r') as template_zip:
+            with zipfile.ZipFile(CLIENT_ZIP_PATH, 'w') as client_zip:
+                # Копируем все файлы из шаблона
+                for item in template_zip.infolist():
+                    client_zip.writestr(item, template_zip.read(item.filename))
+                
+                # Добавляем новый файл client.ps1
+                client_zip.write(CLIENT_PS1_PATH, arcname='client.ps1')
+
+        return jsonify({"message": "Файл client.ps1 успешно создан и добавлен в архив client.zip"}), 200
+
+    except Exception as e:
+        app.logger.error(f"Ошибка при создании архива: {e}")
+        return jsonify({"message": "Ошибка при создании архива"}), 500
+
+# Маршрут для скачивания client.zip
+@app.route('/download-client', methods=['GET'])
+def download_client_zip():
+    try:
+        # Проверяем, существует ли файл client.zip
+        if not os.path.exists(CLIENT_ZIP_PATH):
+            app.logger.error("Файл client.zip не найден.")
+            return jsonify({"message": "Файл не найден"}), 404
+
+        # Логируем успешное обнаружение файла
+        app.logger.info("Файл client.zip найден, начинаем скачивание.")
+
+
+        # Отправляем файл для скачивания
+        return send_file(CLIENT_ZIP_PATH, as_attachment=True)
+
+    except Exception as e:
+        app.logger.error(f"Ошибка при скачивании файла: {e}")
+        return jsonify({"message": f"Ошибка при скачивании файла: {str(e)}"}), 500
+
+        
 # Модель для хранения данных о температуре и параметрах диска
 class Temperature(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -26,6 +183,7 @@ class Temperature(db.Model):
     disk = db.Column(db.String(50), nullable=False)
     temperature = db.Column(db.Float, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    company = db.Column(db.String(50), nullable=False)
 
     # Дополнительные параметры диска
     parameter_241 = db.Column(db.BigInteger, nullable=True)
@@ -238,8 +396,13 @@ def get_temperatures():
         page = int(request.args.get('page', 1))
         per_page = int(request.args.get('per_page', 50))
         offset = (page - 1) * per_page
+        # Получаем email текущего пользователя
+        user_email = current_user.email
+        
+        # Создаем хеш email
+        email_hash = hashlib.sha256(user_email.encode()).hexdigest()
 
-        temperatures = Temperature.query.order_by(Temperature.timestamp.desc()).offset(offset).limit(per_page).all()
+        temperatures = Temperature.query.filter_by(company=email_hash).order_by(Temperature.timestamp.desc()).offset(offset).limit(per_page).all()
 
         result = [
             {
@@ -256,11 +419,11 @@ def get_temperatures():
         print(f"Ошибка при получении данных: {e}")
         return jsonify({"message": "Internal Server Error"}), 500
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 @login_required
 def logout():
     logout_user()
-    flash('Вы вышли из системы.', 'info')
+    flash("Вы успешно вышли из системы.", "info")
     return redirect(url_for('login'))
 
 

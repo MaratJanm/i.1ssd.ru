@@ -20,15 +20,6 @@
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             position: relative;
         }
-        .download-link {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            color: #007bff;
-            text-decoration: underline;
-            font-size: 16px;
-            cursor: pointer;
-        }
         .computer {
             margin-bottom: 20px;
         }
@@ -141,7 +132,41 @@
     <div class="container">
         <!-- Блок для ссылки "Скачать клиент" и кнопки "Выйти", обе в правом углу -->
         <div class="top-links">
-            <a href="/download" class="download-link">Скачать клиент</a>
+			<a href="#" class="download-link" onclick="generateAndDownload()">Скачать клиент</a>
+
+			<script>
+				async function generateAndDownload() {
+					try {
+						// Отправляем запрос на генерацию файла client.ps1
+						const generateResponse = await fetch('/generate-client', {
+							method: 'POST'
+						});
+
+						// Логируем статус ответа от сервера
+						console.log("Ответ на генерацию клиента:", generateResponse.status);
+
+						if (!generateResponse.ok) {
+							throw new Error('Ошибка при генерации клиента');
+						}
+
+						// Ожидаем успешной генерации, затем начинаем скачивание архива client.zip
+						console.log('Файл успешно сгенерирован, начинаем скачивание client.zip');
+
+						const downloadLink = document.createElement('a');
+						downloadLink.href = '/download-client';
+						downloadLink.download = 'client.zip';
+						document.body.appendChild(downloadLink); // Временно добавляем элемент для скачивания
+						downloadLink.click();
+						document.body.removeChild(downloadLink); // Удаляем элемент после скачивания
+
+					} catch (error) {
+						console.error('Ошибка:', error);
+						alert('Ошибка при генерации и скачивании клиента');
+					}
+				}
+			</script>
+
+
             <form action="{{ url_for('logout') }}" method="POST" style="display: inline;">
                 <button type="submit" class="logout-link">Выйти</button>
             </form>
