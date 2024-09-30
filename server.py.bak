@@ -343,20 +343,21 @@ def add_temperature():
                 computer_name=computer_name,
                 disk=disk,
                 temperature=new_temp,
-                for i in range(1, 255):
-                    exec(f'parameter_{i} = parameters.get("{str(i).zfill(3)}")')
-                device_model = deviceModel,  
-                model_family = modelFamily,
-                user_capacity = userCapacity,
-                firmware_version = firmwareVersion
+                device_model=item.get('device_model'),
+                model_family=item.get('model_family'),
+                user_capacity=item.get('user_capacity'),
+                firmware_version=item.get('firmware_version'),
+                **{f'parameter_{str(i).zfill(3)}': parameters.get(f'{str(i).zfill(3)}') for i in range(1, 256)}
             )
+
             db.session.add(new_temp_record)
-            db.session.commit()
+        db.session.commit()
 
         return jsonify({"message": "Данные успешно добавлены"}), 200
     except Exception as e:
         print(f"Ошибка при добавлении данных: {e}")
         return jsonify({"message": "Internal Server Error"}), 500
+
 
 # Получение дополнительной информации по диску
 @app.route('/api/additionalinfo/<computer_name>/<disk_name>', methods=['GET'])
@@ -437,10 +438,10 @@ def get_latest_disk_data(computer_name, disk_name):
             "timestamp": record.timestamp,
             **{f"parameter_{str(i).zfill(3)}": getattr(record, f"parameter_{str(i).zfill(3)}", None) for i in range(1, 256)},
             "temperature": record.temperature,
-            "deviceModel": record.deviceModel,
-            "modelFamily": record.modelFamily,
-            "userCapacity": record.userCapacity,
-            "firmwareVersion": record.firmwareVersion
+            "deviceModel": record.device_model,
+            "modelFamily": record.model_familyamily,
+            "userCapacity": record.user_capacity,
+            "firmwareVersion": record.firmware_version
         } for record in disk_data]
 
 
