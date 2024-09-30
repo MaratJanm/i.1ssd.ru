@@ -186,21 +186,15 @@ class Temperature(db.Model):
     company = db.Column(db.String(50), nullable=False)
 
     # Дополнительные параметры диска
-    parameter_241 = db.Column(db.BigInteger, nullable=True)
-    parameter_243 = db.Column(db.BigInteger, nullable=True)
-    parameter_228 = db.Column(db.BigInteger, nullable=True)
-    parameter_005 = db.Column(db.BigInteger, nullable=True)
-    parameter_009 = db.Column(db.BigInteger, nullable=True)
-    parameter_170 = db.Column(db.BigInteger, nullable=True)
-    parameter_174 = db.Column(db.BigInteger, nullable=True)
-    parameter_184 = db.Column(db.BigInteger, nullable=True)
-    parameter_187 = db.Column(db.BigInteger, nullable=True)
-    parameter_192 = db.Column(db.BigInteger, nullable=True)
-    parameter_194 = db.Column(db.BigInteger, nullable=True)
-    parameter_197 = db.Column(db.BigInteger, nullable=True)
-    parameter_199 = db.Column(db.BigInteger, nullable=True)
-    parameter_230 = db.Column(db.BigInteger, nullable=True)
-    parameter_231 = db.Column(db.BigInteger, nullable=True)
+    device_model = db.Column(db.Text, nullable=True)
+    model_family = db.Column(db.Text, nullable=True)
+    user_capacity = db.Column(db.Text, nullable=True)
+    firmware_version = db.Column(db.Text, nullable=True)
+
+    # Автоматически создаем параметры от parameter_001 до parameter_255
+    for i in range(1, 256):
+        column_name = f'parameter_{i:03}'  # Создаем имена типа parameter_001, parameter_002 и т.д.
+        locals()[column_name] = db.Column(db.BigInteger, nullable=True)
 
 @app.route('/api/disk/<computer_name>/<disk_name>/parameter/<parameter_name>', methods=['GET'])
 @app.route('/api/disk/<computer_name>/<disk_name>/parameter/<parameter_name>', methods=['GET'])
