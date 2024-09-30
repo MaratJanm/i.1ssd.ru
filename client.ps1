@@ -1,7 +1,7 @@
 
         $logFilePath = ".\client.log"
         $apiUrl = "http://i.1ssd.ru/temperatures"
-        $company = "ce9adc51a4572e28a4919af4aa2b4405e11376932df7b16b3e832580dbc977e8" 
+        $company = "a767b5bf63517697a43a1562d87d2c0b0d724249db4d768b6eb1b27eb2593856" 
 
         # Функция для получения температуры дисков и параметров SMART
         function Get-DiskData {

@@ -132,8 +132,11 @@
                 "parameter_192", "parameter_199", "parameter_197", "parameter_230", "parameter_231",
                 "temperature"
             ];
+            // Проходим по всем параметрам и добавляем только те, которые не null или undefined
             parameters.forEach(param => {
-                filteredParams[param] = latestEntry[param] !== undefined ? latestEntry[param] : 'N/A';
+                if (latestEntry[param] !== null && latestEntry[param] !== undefined) {
+                    filteredParams[param] = latestEntry[param];
+                }
             });
             filteredParams['timestamp'] = latestEntry['timestamp'];
             return filteredParams;

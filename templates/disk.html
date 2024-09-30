@@ -126,12 +126,11 @@
             const latestEntry = data[0];
             const filteredParams = {};
             // Получаем только нужные параметры (включая температуру)
-            const parameters = [
-                "parameter_241", "parameter_243", "parameter_228", "parameter_005", "parameter_009",
-                "parameter_170", "parameter_174", "parameter_184", "parameter_187", "parameter_194",
-                "parameter_192", "parameter_199", "parameter_197", "parameter_230", "parameter_231",
-                "temperature"
-            ];
+			const parameters = [
+				...Array.from({ length: 255 }, (_, i) => `parameter_${String(i + 1).padStart(3, '0')}`),
+				"temperature"
+			];
+
             // Проходим по всем параметрам и добавляем только те, которые не null или undefined
             parameters.forEach(param => {
                 if (latestEntry[param] !== null && latestEntry[param] !== undefined) {

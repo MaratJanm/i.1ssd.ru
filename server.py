@@ -186,21 +186,15 @@ class Temperature(db.Model):
     company = db.Column(db.String(50), nullable=False)
 
     # Дополнительные параметры диска
-    parameter_241 = db.Column(db.BigInteger, nullable=True)
-    parameter_243 = db.Column(db.BigInteger, nullable=True)
-    parameter_228 = db.Column(db.BigInteger, nullable=True)
-    parameter_005 = db.Column(db.BigInteger, nullable=True)
-    parameter_009 = db.Column(db.BigInteger, nullable=True)
-    parameter_170 = db.Column(db.BigInteger, nullable=True)
-    parameter_174 = db.Column(db.BigInteger, nullable=True)
-    parameter_184 = db.Column(db.BigInteger, nullable=True)
-    parameter_187 = db.Column(db.BigInteger, nullable=True)
-    parameter_192 = db.Column(db.BigInteger, nullable=True)
-    parameter_194 = db.Column(db.BigInteger, nullable=True)
-    parameter_197 = db.Column(db.BigInteger, nullable=True)
-    parameter_199 = db.Column(db.BigInteger, nullable=True)
-    parameter_230 = db.Column(db.BigInteger, nullable=True)
-    parameter_231 = db.Column(db.BigInteger, nullable=True)
+    device_model = db.Column(db.Text, nullable=True)    
+    model_family = db.Column(db.Text, nullable=True)
+    user_capacity = db.Column(db.Text, nullable=True)
+    firmware_version = db.Column(db.Text, nullable=True)
+
+    # Автоматически создаем параметры от parameter_001 до parameter_255
+    for i in range(1, 256):
+        column_name = f'parameter_{i:03}'  # Создаем имена типа parameter_001, parameter_002 и т.д.
+        locals()[column_name] = db.Column(db.BigInteger, nullable=True)
 
 @app.route('/api/disk/<computer_name>/<disk_name>/parameter/<parameter_name>', methods=['GET'])
 @app.route('/api/disk/<computer_name>/<disk_name>/parameter/<parameter_name>', methods=['GET'])
@@ -349,29 +343,21 @@ def add_temperature():
                 computer_name=computer_name,
                 disk=disk,
                 temperature=new_temp,
-                parameter_241=parameters.get('241'),
-                parameter_243=parameters.get('243'),
-                parameter_228=parameters.get('228'),
-                parameter_005=parameters.get('005'),
-                parameter_009=parameters.get('009'),
-                parameter_170=parameters.get('170'),
-                parameter_174=parameters.get('174'),
-                parameter_184=parameters.get('184'),
-                parameter_187=parameters.get('187'),
-                parameter_194=parameters.get('194'),
-                parameter_192=parameters.get('192'),
-                parameter_199=parameters.get('199'),
-                parameter_197=parameters.get('197'),
-                parameter_230=parameters.get('230'),
-                parameter_231=parameters.get('231')
+                device_model=item.get('device_model'),
+                model_family=item.get('model_family'),
+                user_capacity=item.get('user_capacity'),
+                firmware_version=item.get('firmware_version'),
+                **{f'parameter_{str(i).zfill(3)}': parameters.get(f'{str(i).zfill(3)}') for i in range(1, 256)}
             )
+
             db.session.add(new_temp_record)
-            db.session.commit()
+        db.session.commit()
 
         return jsonify({"message": "Данные успешно добавлены"}), 200
     except Exception as e:
         print(f"Ошибка при добавлении данных: {e}")
         return jsonify({"message": "Internal Server Error"}), 500
+
 
 # Получение дополнительной информации по диску
 @app.route('/api/additionalinfo/<computer_name>/<disk_name>', methods=['GET'])
@@ -450,23 +436,15 @@ def get_latest_disk_data(computer_name, disk_name):
 
         result = [{
             "timestamp": record.timestamp,
-            "parameter_241": record.parameter_241,
-            "parameter_243": record.parameter_243,
-            "parameter_228": record.parameter_228,
-            "parameter_005": record.parameter_005,
-            "parameter_009": record.parameter_009,
-            "parameter_170": record.parameter_170,
-            "parameter_174": record.parameter_174,
-            "parameter_184": record.parameter_184,
-            "parameter_187": record.parameter_187,
-            "parameter_194": record.parameter_194,
-            "parameter_192": record.parameter_192,
-            "parameter_199": record.parameter_199,
-            "parameter_197": record.parameter_197,
-            "parameter_230": record.parameter_230,
-            "parameter_231": record.parameter_231,
-            "temperature": record.temperature
+            **{f"parameter_{str(i).zfill(3)}": getattr(record, f"parameter_{str(i).zfill(3)}", None) for i in range(1, 256)},
+            "temperature": record.temperature,
+            "deviceModel": record.device_model,
+            "modelFamily": record.model_familyamily,
+            "userCapacity": record.user_capacity,
+            "firmwareVersion": record.firmware_version
         } for record in disk_data]
+
+
 
         return jsonify(result), 200
     except Exception as e:  # Исправляем catch на except
