@@ -13,8 +13,8 @@ import time
 app = Flask(__name__)
 
 # Конфигурация для подключения к PostgreSQL
-app.config['SECRET_KEY'] = '12345678'  # Не забудь установить секретный ключ для безопасности
-app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:12345678@localhost:5432/temperatures'
+#app.config['SECRET_KEY'] = '12345678'  # Не забудь установить секретный ключ для безопасности
+app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:LFag-7mYQm@localhost:5432/temperatures'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
