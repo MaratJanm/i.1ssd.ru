@@ -197,7 +197,6 @@ class Temperature(db.Model):
         locals()[column_name] = db.Column(db.BigInteger, nullable=True)
 
 @app.route('/api/disk/<computer_name>/<disk_name>/parameter/<parameter_name>', methods=['GET'])
-@app.route('/api/disk/<computer_name>/<disk_name>/parameter/<parameter_name>', methods=['GET'])
 def get_parameter_data(computer_name, disk_name, parameter_name):
     try:
         # Получаем параметры для сортировки и пагинации

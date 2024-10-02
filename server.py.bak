@@ -334,7 +334,7 @@ def add_temperature():
 
                 # Игнорируем запись, если изменение температуры слишком резкое за короткий промежуток времени
                 if time_diff < timedelta(minutes=1) and temp_diff > 20:
-                    print(f"Игнорирование температуры для {disk} на {computer_name}: {new_temp}°C "
+                    app.logger.error(f"Игнорирование температуры для {disk} на {computer_name}: {new_temp}°C "
                           f"(разница {temp_diff}°C за {time_diff.seconds} секунд)")
                     continue
 
@@ -355,7 +355,7 @@ def add_temperature():
 
         return jsonify({"message": "Данные успешно добавлены"}), 200
     except Exception as e:
-        print(f"Ошибка при добавлении данных: {e}")
+        app.logger.error(f"Ошибка при добавлении данных: {e}")
         return jsonify({"message": "Internal Server Error"}), 500
 
 
@@ -372,7 +372,7 @@ def get_additional_info(computer_name, disk_name):
 
         return jsonify(result)
     except Exception as e:
-        print(f"Ошибка при получении дополнительных данных: {e}")
+        app.logger.error(f"Ошибка при получении дополнительных данных: {e}")
         return jsonify({"message": "Internal Server Error"}), 500
 
 # Получение списка температур
@@ -402,7 +402,7 @@ def get_temperatures():
         ]
         return jsonify(result)
     except Exception as e:
-        print(f"Ошибка при получении данных: {e}")
+        app.logger.error(f"Ошибка при получении данных: {e}")
         return jsonify({"message": "Internal Server Error"}), 500
 
 @app.route("/logout", methods=["POST"])
@@ -492,7 +492,7 @@ if __name__ == "__main__":
             db.create_all()  # Создание таблиц при необходимости
             print("Таблицы проверены и созданы.")
     except Exception as e:
-        print(f"Ошибка при создании таблиц: {e}")
+        app.logger.error(f"Ошибка при создании таблиц: {e}")
 
     app.run(host='0.0.0.0', port=8000)
 
