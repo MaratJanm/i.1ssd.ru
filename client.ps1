@@ -1,54 +1,82 @@
 
         $logFilePath = ".\client.log"
         $apiUrl = "http://i.1ssd.ru/temperatures"
-        $company = "a767b5bf63517697a43a1562d87d2c0b0d724249db4d768b6eb1b27eb2593856" 
+        $company = "ca26ae3f3309a825ec386068f7382d2dfa0df46207c02a05a633bf44bd86f770"  # Р—РЅР°С‡РµРЅРёРµ РїР°СЂР°РјРµС‚СЂР° company (С…РµС€РёСЂРѕРІР°РЅРЅС‹Р№ email)
 
-        # Функция для получения температуры дисков и параметров SMART
+        # Р¤СѓРЅРєС†РёСЏ РґР»СЏ РїРѕР»СѓС‡РµРЅРёСЏ IP-Р°РґСЂРµСЃР° РєРѕРјРїСЊСЋС‚РµСЂР°
+        function Get-ComputerIPAddress {
+            $ipAddress = (Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias Ethernet).IPAddress
+            return $ipAddress
+        }
+
+        # Р¤СѓРЅРєС†РёСЏ РґР»СЏ РїРѕР»СѓС‡РµРЅРёСЏ С‚РµРјРїРµСЂР°С‚СѓСЂС‹ РґРёСЃРєРѕРІ Рё РїР°СЂР°РјРµС‚СЂРѕРІ SMART
         function Get-DiskData {
             $diskData = @()
-            $smartParameters = @('241', '243', '228', '005', '009', '170', '174', '184', '187', '194', '192', '199', '197', '230', '231')
 
-            # Получение данных о дисках с помощью Get-PhysicalDisk и Get-StorageReliabilityCounter
+            # РџРѕР»СѓС‡РµРЅРёРµ РґР°РЅРЅС‹С… Рѕ РґРёСЃРєР°С… СЃ РїРѕРјРѕС‰СЊСЋ Get-PhysicalDisk Рё Get-StorageReliabilityCounter
             $disks = Get-PhysicalDisk | Sort-Object -Property Number
             $index = 0
             foreach ($disk in $disks) {
                 $diskName = $disk.DeviceID
-                $reliabilityData = Get-StorageReliabilityCounter -PhysicalDisk $disk
-
+                $reliabilityData = Get-StorageReliabilityCounter -PhysicalDisk $disk	
                 $temperatureCelsius = $null
                 $parameters = @{}
+                for ($i = 1; $i -le 255; $i++) {
+                    $Parameters[$i] = $null
+                }
+                $deviceModel = $null
+                $modelFamily = $null
+                $userCapacity = $null
+                $firmwareVersion = $null
 
                 if ($reliabilityData) {
                     $temperatureCelsius = $reliabilityData.Temperature
 
-                    # Получение параметров SMART
-                    $driveLetter = [char](97 + $index)  # 'a' начинается с 97 в ASCII
+                    # РџРѕР»СѓС‡РµРЅРёРµ РїР°СЂР°РјРµС‚СЂРѕРІ SMART
+                    $driveLetter = [char](97 + $index) # 'a' РЅР°С‡РёРЅР°РµС‚СЃСЏ СЃ 97 РІ ASCII
                     $drivePath = "/dev/sd$driveLetter"
                     Write-Output $drivePath
-                    $index++  # Увеличиваем счетчик после каждой итерации
+                    $index++ # РЈРІРµР»РёС‡РёРІР°РµРј СЃС‡РµС‚С‡РёРє РїРѕСЃР»Рµ РєР°Р¶РґРѕР№ РёС‚РµСЂР°С†РёРё
+                    $output = & .\smartctl.exe -a $drivePath 
                     
-                    foreach ($param in $smartParameters) {
-                        $output = & .\smartctl.exe -A $drivePath | Select-String "$param"
-                        $pattern = '(\d+)$'
+                    # РР·РІР»РµС‡РµРЅРёРµ РґРѕРїРѕР»РЅРёС‚РµР»СЊРЅС‹С… РїР°СЂР°РјРµС‚СЂРѕРІ СЃ РёСЃРїРѕР»СЊР·РѕРІР°РЅРёРµРј СЂРµРіСѓР»СЏСЂРЅРѕРіРѕ РІС‹СЂР°Р¶РµРЅРёСЏ
+                    $deviceModel = ($output | Select-String -Pattern 'Device Model').Line -replace '^.*?:\s*', ''
+                    $modelFamily = ($output | Select-String -Pattern 'Model Family').Line -replace '^.*?:\s*', ''
+                    $userCapacity = ($output | Select-String -Pattern 'User Capacity').Line -replace '^.*?:\s*', ''
+                    $firmwareVersion = ($output | Select-String -Pattern 'Firmware Version').Line -replace '^.*?:\s*', ''
 
-                        if ($output -match $pattern) {
-                            $matchedValue = $matches[1]
-                            $parameters[$param] = [int]$matchedValue  # Преобразование в целое число
-                        } else {
-                            $parameters[$param] = $null  # Если параметр не найден, отправляем как null
+                    foreach ($line in $output) {
+                        # РџСЂРѕРІРµСЂСЏРµРј, СЃРѕРѕС‚РІРµС‚СЃС‚РІСѓРµС‚ Р»Рё СЃС‚СЂРѕРєР° С„РѕСЂРјР°С‚Сѓ ID# ATTRIBUTE_NAME
+                        if ($line -match '^\s*(\d+)\s+\S+\s+0x\S+\s+(\d+)\s+') {
+                            $id = [int]$matches[1]  # ID РїР°СЂР°РјРµС‚СЂР°
+                            $value = [int]$matches[2]  # Р—РЅР°С‡РµРЅРёРµ VALUE
+
+                            # РЎРѕС…СЂР°РЅСЏРµРј Р·РЅР°С‡РµРЅРёРµ VALUE РїРѕ РєР»СЋС‡Сѓ ID
+                            $parameters[$id] = $value
                         }
-                    }
+                    }	
                 }
 
-                $diskData += @{ "disk" = $disk.FriendlyName; "temperature" = $temperatureCelsius; "parameters" = $parameters }
+                $diskData += @{ 
+                    "disk" = $disk.FriendlyName
+                    "temperature" = $temperatureCelsius
+                    "parameters" = $parameters
+                    "deviceModel" = $deviceModel
+                    "modelFamily" = $modelFamily
+                    "userCapacity" = $userCapacity
+                    "firmwareVersion" = $firmwareVersion
+                }
             }
 
             return $diskData
         }
 
-        # Функция для фильтрации данных
+        # Р¤СѓРЅРєС†РёСЏ РґР»СЏ С„РёР»СЊС‚СЂР°С†РёРё РґР°РЅРЅС‹С…
         function Filter-DiskData {
-            param ([array]$diskData)
+            param (
+                [array]$diskData
+            )
+
             return $diskData | Where-Object {
                 $_.disk -ne $null -and
                 $_.temperature -ne $null -and 
@@ -56,41 +84,58 @@
             }
         }
 
-        # Функция для отправки данных на сервер
+        # Р¤СѓРЅРєС†РёСЏ РґР»СЏ РѕС‚РїСЂР°РІРєРё РґР°РЅРЅС‹С… РЅР° СЃРµСЂРІРµСЂ
         function Send-DataToServer {
-            param ([string]$apiUrl, [string]$computerName, [array]$diskData, [string]$company)
+            param (
+                [string]$apiUrl,
+                [string]$computerName,
+                [array]$diskData,
+                [string]$company
+            )
 
             $payload = @{
+
                 computer_name = $computerName
-                company = $company  # Используем параметр company
+                company = $company  # РСЃРїРѕР»СЊР·СѓРµРј РїР°СЂР°РјРµС‚СЂ company
                 temperatures = @()
             }
 
             foreach ($data in $diskData) {
-                $tempData = @{
+                # РџСЂРµРѕР±СЂР°Р·СѓРµРј РєР»СЋС‡Рё С…СЌС€-С‚Р°Р±Р»РёС†С‹ РїР°СЂР°РјРµС‚СЂРѕРІ РІ СЃС‚СЂРѕРєРё
+                $stringParameters = @{}
+                foreach ($key in $data.parameters.Keys) {
+                    $stringParameters["$key"] = $data.parameters[$key]  # РџСЂРµРѕР±СЂР°Р·СѓРµРј РєР»СЋС‡ РІ СЃС‚СЂРѕРєСѓ
+                }
+
+                $tempData = @{ 
                     disk = $data.disk
                     temperature = $data.temperature
-                    parameters = $data.parameters
+                    parameters = $stringParameters  # РСЃРїРѕР»СЊР·СѓРµРј РїР°СЂР°РјРµС‚СЂС‹ СЃ РєР»СЋС‡Р°РјРё РІ РІРёРґРµ СЃС‚СЂРѕРє
+                    deviceModel = $data.deviceModel
+                    modelFamily = $data.modelFamily
+                    userCapacity = $data.userCapacity
+                    firmwareVersion = $data.firmwareVersion
                 }
+
                 $payload.temperatures += $tempData
             }
 
             $jsonPayload = $payload | ConvertTo-Json -Depth 5
-            Write-Output "Отправляемый JSON-пейлоад: $jsonPayload"
+            Write-Output "РћС‚РїСЂР°РІР»СЏРµРјС‹Р№ JSON-РїРµР№Р»РѕР°Рґ: $jsonPayload"
 
             try {
                 $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Body $jsonPayload -ContentType "application/json"
                 Write-Output "Server response: $($response.message)" | Out-File $logFilePath -Append
             } catch {
-                Write-Output "Ошибка при вызове API. Статус код: $($_.Exception.Response.StatusCode.Value__) Сообщение: $($_.Exception.Message)" | Out-File $logFilePath -Append
+                Write-Output "РћС€РёР±РєР° РїСЂРё РІС‹Р·РѕРІРµ API. РЎС‚Р°С‚СѓСЃ РєРѕРґ: $($_.Exception.Response.StatusCode.Value__) РЎРѕРѕР±С‰РµРЅРёРµ: $($_.Exception.Message)" | Out-File $logFilePath -Append
             }
         }
 
-        # Основной цикл
-        $computerName = $env:COMPUTERNAME
-
+        # РћСЃРЅРѕРІРЅРѕР№ С†РёРєР»
+        $ipAddress = Get-ComputerIPAddress
+        $computerName = "$env:COMPUTERNAME ($ipAddress)"  # Р”РѕР±Р°РІР»СЏРµРј IP Рє РЅР°Р·РІР°РЅРёСЋ РєРѕРјРїСЊСЋС‚РµСЂР°
         $diskData = Get-DiskData
         $filteredDiskData = Filter-DiskData -diskData $diskData
         Send-DataToServer -apiUrl $apiUrl -computerName $computerName -diskData $filteredDiskData -company $company
-        Start-Sleep -Seconds 5  # Отправка данных каждые 5 секунд
+        Start-Sleep -Seconds 60  # РћС‚РїСЂР°РІРєР° РґР°РЅРЅС‹С… РєР°Р¶РґС‹Рµ 60 СЃРµРєСѓРЅРґ
         
