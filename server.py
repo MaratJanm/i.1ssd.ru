@@ -358,9 +358,10 @@ def add_temperature():
             return jsonify({"message": "Invalid data"}), 400
 
         computer_name = data.get('computer_name')
+        company = data.get('company')
         temperatures = data.get('temperatures')
 
-        if not computer_name or not temperatures:
+        if not computer_name or not temperatures or not company:
             return jsonify({"message": "Invalid data"}), 400
 
         for item in temperatures:
@@ -385,6 +386,7 @@ def add_temperature():
             # Сохранение новых данных
             new_temp_record = Temperature(
                 computer_name=computer_name,
+		company=company,
                 disk=disk,
                 temperature=new_temp,
                 device_model=item.get('deviceModel'),
