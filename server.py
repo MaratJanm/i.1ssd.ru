@@ -387,10 +387,10 @@ def add_temperature():
                 computer_name=computer_name,
                 disk=disk,
                 temperature=new_temp,
-                device_model=item.get('device_model'),
-                model_family=item.get('model_family'),
-                user_capacity=item.get('user_capacity'),
-                firmware_version=item.get('firmware_version'),
+                device_model=item.get('deviceModel'),
+                model_family=item.get('modelFamily'),
+                user_capacity=item.get('userCapacity'),
+                firmware_version=item.get('firmwareVersion'),
                 **{f'parameter_{str(i).zfill(3)}': parameters.get(f'{str(i).zfill(3)}') for i in range(1, 256)}
             )
 
