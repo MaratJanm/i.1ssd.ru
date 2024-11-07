@@ -1,7 +1,7 @@
 
         $logFilePath = ".\client.log"
         $apiUrl = "http://i.1ssd.ru/temperatures"
-        $company = "ca26ae3f3309a825ec386068f7382d2dfa0df46207c02a05a633bf44bd86f770"  # Значение параметра company (хешированный email)
+        $company = "ce9adc51a4572e28a4919af4aa2b4405e11376932df7b16b3e832580dbc977e8"  # Значение параметра company (хешированный email)
 
         # Функция для получения IP-адреса компьютера
         function Get-ComputerIPAddress {

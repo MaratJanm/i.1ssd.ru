@@ -484,10 +484,10 @@ def get_latest_disk_data(computer_name, disk_name):
             "timestamp": record.timestamp,
             **{f"parameter_{str(i).zfill(3)}": getattr(record, f"parameter_{str(i).zfill(3)}", None) for i in range(1, 256)},
             "temperature": record.temperature,
-            "deviceModel": record.device_model,
-            "modelFamily": record.model_family,
-            "userCapacity": record.user_capacity,
-            "firmwareVersion": record.firmware_version
+            "device_model": record.device_model,
+            "model_family": record.model_family,
+            "user_capacity": record.user_capacity,
+            "firmware_version": record.firmware_version
         } for record in disk_data]
 
 
